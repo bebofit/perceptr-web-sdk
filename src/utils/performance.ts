@@ -33,7 +33,6 @@ export class PerformanceMonitor {
     memoryLimit = PerformanceMonitor.DEFAULT_MEMORY_LIMIT,
     onLimitExceeded: () => void
   ) {
-    console.log("[SDK] Memory usage:", window.performance, typeof window.performance.measureUserAgentSpecificMemory === "function");
     if (!this.isMemoryAPIAvailable()) {
       console.warn("Memory API is not available");
     }
