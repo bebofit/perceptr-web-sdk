@@ -1,49 +1,43 @@
 import { Breadcrumbs } from "./Breadcrumbs";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { NetworkMonitor } from "./NetworkMonitor";
-import { DataAggregator } from "./SessionAggregator";
 import { SessionExporter } from "./SessionExporter";
 import { SessionRecorder } from "./SessionRecorder";
-import { SessionCore, CoreConfig } from "./types";
+import { SessionCore, CoreConfig, ExportedSession } from "./types";
 import { PerformanceMonitor, scheduleIdleTask } from "./utils/performance";
 import { v4 as uuidv4 } from "uuid";
 import {
   ErrorCode,
   SDKErrorEvent,
   emitError,
-  wrapWithErrorBoundary,
 } from "./utils/errors";
 
-export interface CoreOptions extends CoreConfig {
-  debug?: boolean;
-}
 
 export class Core {
   private readonly components: SessionCore;
-  private readonly config: CoreOptions;
+  private readonly config: CoreConfig;
+  private readonly sessionId: string;
+  private readonly startTime: number;
+  private readonly performanceMonitor: PerformanceMonitor;
   private isEnabled = false;
-  private performanceMonitor?: PerformanceMonitor;
 
-  constructor(config: CoreOptions = {}) {
+  constructor(config: CoreConfig = {}) {
     this.config = config;
+    this.sessionId = uuidv4();
+    this.startTime = Date.now();
 
     try {
-      const sessionId = uuidv4();
-      const startTime = Date.now();
-
       this.components = {
-        sessionRecorder: new SessionRecorder(config.session),
-        networkMonitor: new NetworkMonitor(config.network),
-        consoleLogger: new ConsoleLogger(config.console),
-        breadcrumbs: new Breadcrumbs(config.breadcrumbs),
-        aggregator: new DataAggregator(sessionId, startTime),
+        sessionRecorder: new SessionRecorder(config.session, config.debug),
+        networkMonitor: new NetworkMonitor(config.network, config.debug),
+        consoleLogger: new ConsoleLogger(config.console, config.debug),
+        breadcrumbs: new Breadcrumbs(config.breadcrumbs, config.debug),
       };
 
       this.performanceMonitor = new PerformanceMonitor(
         config.performance?.memoryLimit,
         () => this.handleMemoryLimit()
       );
-
       if (config.debug) {
         this.setupDebugListeners();
       }
@@ -72,7 +66,7 @@ export class Core {
     if (this.isEnabled) return;
 
     try {
-      this.performanceMonitor?.start();
+      this.performanceMonitor.start();
 
       // Start components using idle scheduling
       scheduleIdleTask(() => {
@@ -120,44 +114,39 @@ export class Core {
     }
   }
 
-  public async stop(): Promise<string> {
+  public async stop(): Promise<ExportedSession> {
     if (!this.isEnabled) {
       throw new Error("Session not started");
     }
 
     try {
-      this.performanceMonitor?.stop();
-
-      // Stop all components
-      this.components.sessionRecorder.stopSession();
-      this.components.networkMonitor.disable();
-      this.components.consoleLogger.disable();
-      this.components.breadcrumbs.disable();
-
       // Aggregate and export data
-      return new Promise<string>((resolve, reject) => {
+      return new Promise<ExportedSession>((resolve, reject) => {
         scheduleIdleTask(() => {
           try {
-            this.components.aggregator.addSessionEvents(
-              this.components.sessionRecorder.getCurrentSession()!
-            );
-            this.components.aggregator.addNetworkRequests(
-              this.components.networkMonitor.getRequests()
-            );
-            this.components.aggregator.addConsoleLogs(
-              this.components.consoleLogger.getLogs()
-            );
-            this.components.aggregator.addBreadcrumbs(
+
+            // Create the exporter
+            const exporter = new SessionExporter(
+              this.sessionId,
+              this.startTime,
+              Date.now(),
+              this.components.sessionRecorder.getRecordingEvents(),
+              this.components.networkMonitor.getRequests(),
+              this.components.consoleLogger.getLogs(),
               this.components.breadcrumbs.getBreadcrumbs()
             );
-
-            const exporter = SessionExporter.fromAggregator(
-              this.components.aggregator.getAggregatedData()
-            );
-
             this.isEnabled = false;
-            resolve(exporter.exportSession());
+            
+          
+            // Stop all components
+            this.performanceMonitor.stop();
+            this.components.sessionRecorder.stopSession();
+            this.components.networkMonitor.disable();
+            this.components.consoleLogger.disable();
+            this.components.breadcrumbs.disable();
 
+            // Export the session data
+            resolve(exporter.exportSession());
             if (this.config.debug) {
               console.debug("[SDK] Recording stopped and data exported");
             }
@@ -181,11 +170,12 @@ export class Core {
     }
   }
 
+  // Handle memory limit exceeded
   private handleMemoryLimit(): void {
     emitError({
       code: ErrorCode.MEMORY_LIMIT_EXCEEDED,
       message: "Memory limit exceeded, pausing session recording",
-      context: { limit: this.performanceMonitor?.getMemoryLimit() },
+      context: { limit: this.performanceMonitor.getMemoryLimit() },
     });
     this.pause();
   }
@@ -193,10 +183,23 @@ export class Core {
   public pause(): void {
     if (!this.isEnabled) return;
     this.isEnabled = false;
-    this.performanceMonitor?.stop();
+    this.components.sessionRecorder.pause();
+    this.components.networkMonitor.disable();
+    this.components.consoleLogger.disable();
+    this.components.breadcrumbs.disable();
+    this.performanceMonitor.stop();
   }
 
-  // ... rest of the class implementation
+  public resume(): void {
+    if (this.isEnabled) return;
+    this.isEnabled = true;
+    this.components.sessionRecorder.resume();
+    this.components.networkMonitor.enable();
+    this.components.consoleLogger.enable();
+    this.components.breadcrumbs.enable();
+    this.performanceMonitor.start();
+  }
+
 }
 
 export default Core;

@@ -5,6 +5,7 @@ export class ConsoleLogger {
   private logs: ConsoleLog[] = [];
   private originalMethods: Partial<Console> = {};
   private isEnabled = false;
+  private debug = false;
 
   private readonly config: Required<ConsoleLoggerConfig> = {
     maxLogs: 1000,
@@ -13,12 +14,18 @@ export class ConsoleLogger {
     captureStack: true,
   };
 
-  constructor(config: ConsoleLoggerConfig = {}) {
+  constructor(config: ConsoleLoggerConfig = {}, debug: boolean = false) {
     this.config = { ...this.config, ...config };
+    this.debug = debug;
   }
 
   public enable(): void {
-    if (this.isEnabled) return;
+    if (this.isEnabled) {
+      if(this.debug) {
+        console.warn("[SDK] ConsoleLogger already enabled");
+      }
+      return;
+    }
 
     // Store original methods
     this.originalMethods = {

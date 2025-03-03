@@ -1,20 +1,21 @@
-import { record } from "rrweb";
-import { v4 as uuidv4 } from "uuid";
-import type { SessionConfig, SessionData, SessionEvent } from "./types";
+import { record} from "rrweb";
+import type { SessionConfig } from "./types";
 import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
+import type { eventWithTime } from "@rrweb/types";
 
 export class SessionRecorder {
-  private events: SessionEvent[] = [];
-  private recording = false;
+  private events: eventWithTime[] = [];
+  private isRecording = false;
   private stopFn?: () => void;
-  private sessionId: string = "";
-  private startTime: number = 0;
   private idleTimeout?: any;
   private readonly config: Required<SessionConfig>;
+  private readonly debug: boolean;
 
-  constructor(config: SessionConfig = {}) {
+  constructor(config: SessionConfig = {}, debug: boolean = false) {
+    this.debug = debug;
     this.config = {
       console: {
+        lengthThreshold: config.console?.lengthThreshold ?? 1000,
         level: config.console?.level ?? ["log", "info", "warn", "error"],
         logger: config.console?.logger ?? "console",
         stringifyOptions: config.console?.stringifyOptions ?? {
@@ -38,24 +39,16 @@ export class SessionRecorder {
     };
   }
 
-  public startSession(): string {
-    if (this.recording) {
-      return this.sessionId;
+  public startSession(): void {
+    if (this.isRecording) {
+      return;
     }
-
-    this.sessionId = uuidv4();
-    this.startTime = Date.now();
-    this.events = [];
-
     this.stopFn = record({
       emit: (event) => {
-        this.addEvent({
-          timestamp: event.timestamp,
-          type: event.type.toString(),
-          data: event,
-        });
+        this.addEvent(event);
       },
       plugins: [
+        // event type === '6' is console log
         getRecordConsolePlugin({
           lengthThreshold: this.config.console?.lengthThreshold,
           level: this.config.console?.level,
@@ -73,49 +66,45 @@ export class SessionRecorder {
       recordCrossOriginIframes: true,
     });
 
-    this.recording = true;
+    this.isRecording = true;
     this.resetIdleTimeout();
-
-    return this.sessionId;
   }
 
-  public stopSession(): SessionData {
-    if (!this.recording || !this.stopFn) {
-      throw new Error("No active recording session");
+  public stopSession(): void {
+    if (!this.isRecording ) {
+      if(this.debug) {
+        console.warn("[SDK] No active recording session");
+      }
+      return;
     }
-
-    this.stopFn();
-    this.recording = false;
+    if(this.stopFn) {
+      this.stopFn();
+    }
+    this.events = [];
+    this.isRecording = false;
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);
     }
-
-    return {
-      sessionId: this.sessionId,
-      startTime: this.startTime,
-      endTime: Date.now(),
-      events: this.events,
-    };
   }
 
   public pause(): void {
-    if (!this.recording || !this.stopFn) {
+    if (!this.isRecording || !this.stopFn) {
       return;
     }
 
     this.stopFn();
-    this.recording = false;
+    this.isRecording = false;
   }
 
   public resume(): void {
-    if (this.recording) {
+    if (this.isRecording) {
       return;
     }
 
     this.startSession();
   }
 
-  private addEvent(event: SessionEvent): void {
+  private addEvent(event: eventWithTime): void {
     this.events.push(event);
     if (this.events.length > this.config.maxEvents) {
       this.events.shift();
@@ -129,19 +118,15 @@ export class SessionRecorder {
     }
 
     this.idleTimeout = setTimeout(() => {
-      this.pause();
+      // TODO: Uncomment this when we have a way to resume the recording
+      // this.pause();
     }, this.config.idleTimeout);
   }
 
-  public getCurrentSession(): SessionData | null {
-    if (!this.recording) {
-      return null;
+  public getRecordingEvents(): eventWithTime[] {
+    if (!this.isRecording) {
+      throw new Error("No active recording session");
     }
-
-    return {
-      sessionId: this.sessionId,
-      startTime: this.startTime,
-      events: this.events,
-    };
+    return this.events;
   }
 }

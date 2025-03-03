@@ -1,7 +1,14 @@
 declare global {
   interface Performance {
     measureUserAgentSpecificMemory(): Promise<MemoryEstimate>;
+    memory: Memory;
   }
+}
+
+export interface Memory {
+  totalJSHeapSize: number;
+  usedJSHeapSize: number;
+  jsHeapSizeLimit: number;
 }
 
 export interface MemoryEstimate {
@@ -26,6 +33,7 @@ export class PerformanceMonitor {
     memoryLimit = PerformanceMonitor.DEFAULT_MEMORY_LIMIT,
     onLimitExceeded: () => void
   ) {
+    console.log("[SDK] Memory usage:", window.performance, typeof window.performance.measureUserAgentSpecificMemory === "function");
     if (!this.isMemoryAPIAvailable()) {
       console.warn("Memory API is not available");
     }
@@ -58,22 +66,32 @@ export class PerformanceMonitor {
   private async checkMemoryUsage(): Promise<void> {
     try {
       const memory = await this.getMemoryInfo();
-      if (memory && memory.bytes > this.memoryLimit) {
-        this.onLimitExceeded();
+      if (memory && typeof memory === "object" && "usedJSHeapSize" in memory) {
+        if (memory.usedJSHeapSize > memory.jsHeapSizeLimit) {
+          this.onLimitExceeded();
+        }
+      } else if (memory && typeof memory === "object" && "bytes" in memory) {
+        if (memory.bytes > this.memoryLimit) {
+          this.onLimitExceeded();
+        }
       }
     } catch (error) {
       console.warn("Memory measurement failed:", error);
     }
   }
 
-  private async getMemoryInfo(): Promise<MemoryEstimate | null> {
+  private async getMemoryInfo(): Promise<MemoryEstimate | Memory | null> {
     if (!this.isMemoryAPIAvailable()) return null;
-    return window.performance.measureUserAgentSpecificMemory();
+    if (typeof window.performance.measureUserAgentSpecificMemory === "function") {
+      return window.performance.measureUserAgentSpecificMemory();
+    }
+    return window.performance.memory;
   }
 
   private isMemoryAPIAvailable(): boolean {
     if (
-      typeof window.performance.measureUserAgentSpecificMemory === "function"
+      typeof window.performance.measureUserAgentSpecificMemory === "function" ||
+      window.performance.memory
     ) {
       return true;
     }
@@ -85,6 +103,6 @@ export function scheduleIdleTask(task: () => void, timeout = 1000): void {
   if (typeof window.requestIdleCallback !== "undefined") {
     window.requestIdleCallback(task, { timeout });
   } else {
-    setTimeout(task, 0);
+    setTimeout(task, timeout);
   }
 }

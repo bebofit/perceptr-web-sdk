@@ -6,9 +6,10 @@ export class Breadcrumbs {
   private breadcrumbs: Breadcrumb[] = [];
   private readonly config: Required<BreadcrumbsConfig>;
   private isEnabled = false;
+  private debug = false;
   private cleanupFns: (() => void)[] = [];
 
-  constructor(config: BreadcrumbsConfig = {}) {
+  constructor(config: BreadcrumbsConfig = {}, debug: boolean = false) {
     this.config = {
       maxBreadcrumbs: config.maxBreadcrumbs ?? 100,
       enableAutoCapture: config.enableAutoCapture ?? true,
@@ -21,10 +22,16 @@ export class Breadcrumbs {
         levels: config.console?.levels ?? ["error", "warn"],
       },
     };
+    this.debug = debug;
   }
 
   public enable(): void {
-    if (this.isEnabled) return;
+    if (this.isEnabled) {
+      if(this.debug) {
+        console.warn("[SDK] Breadcrumbs already enabled");
+      }
+      return;
+    }
     this.isEnabled = true;
 
     if (this.config.enableAutoCapture) {

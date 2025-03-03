@@ -7,6 +7,7 @@ export class NetworkMonitor {
   private originalXHROpen: typeof XMLHttpRequest.prototype.open;
   private originalXHRSend: typeof XMLHttpRequest.prototype.send;
   private isEnabled = false;
+  private debug = false;
 
   private readonly config: Required<NetworkMonitorConfig> = {
     maxRequests: 1000,
@@ -17,7 +18,8 @@ export class NetworkMonitor {
     excludeUrls: [/\/logs$/, /\/health$/],
   };
 
-  constructor(config: NetworkMonitorConfig = {}) {
+  constructor(config: NetworkMonitorConfig = {}, debug: boolean = false) {
+    this.debug = debug;
     this.config = { ...this.config, ...config };
     this.originalFetch = window.fetch;
     this.originalXHROpen = XMLHttpRequest.prototype.open;
@@ -25,14 +27,24 @@ export class NetworkMonitor {
   }
 
   public enable(): void {
-    if (this.isEnabled) return;
+    if (this.isEnabled) {
+      if(this.debug) {
+        console.warn("[SDK] NetworkMonitor already enabled");
+      }
+      return;
+    }
     this.patchFetch();
     this.patchXHR();
     this.isEnabled = true;
   }
 
   public disable(): void {
-    if (!this.isEnabled) return;
+    if (!this.isEnabled) {
+      if(this.debug) {
+        console.warn("[SDK] NetworkMonitor already disabled");
+      }
+      return;
+    }
     window.fetch = this.originalFetch;
     XMLHttpRequest.prototype.open = this.originalXHROpen;
     XMLHttpRequest.prototype.send = this.originalXHRSend;

@@ -1,9 +1,9 @@
 import { Breadcrumbs } from "../Breadcrumbs";
 import { ConsoleLogger } from "../ConsoleLogger";
 import { NetworkMonitor } from "../NetworkMonitor";
-import { DataAggregator } from "../SessionAggregator";
 import { SessionRecorder } from "../SessionRecorder";
 import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
+import type { eventWithTime } from "@rrweb/types";
 
 export interface SessionConfig {
   maxEvents?: number;
@@ -21,17 +21,12 @@ export interface SessionConfig {
   console?: Parameters<typeof getRecordConsolePlugin>[0];
 }
 
-export interface SessionEvent {
-  timestamp: number;
-  type: string;
-  data: any;
-}
 
 export interface SessionData {
   sessionId: string;
   startTime: number;
   endTime?: number;
-  events: SessionEvent[];
+  events: eventWithTime[];
 }
 
 export interface NetworkRequest {
@@ -96,29 +91,6 @@ export interface ConsoleLoggerConfig {
   captureStack?: boolean;
 }
 
-export interface AggregatedEvent {
-  timestamp: number;
-  type: "rrweb" | "network" | "console" | "breadcrumb";
-  data: SessionEvent | NetworkRequest | ConsoleLog | Breadcrumb;
-}
-
-export interface SessionAggregator {
-  sessionId: string;
-  startTime: number;
-  endTime?: number;
-  events: AggregatedEvent[];
-}
-
-export interface ExportedSession {
-  sessionId: string;
-  startTime: number;
-  endTime?: number;
-  metadata?: Record<string, any>;
-  rrwebEvents: SessionEvent[];
-  networkRequests: NetworkRequest[];
-  breadcrumbs: Breadcrumb[];
-  consoleLogs: ConsoleLog[];
-}
 
 export interface PerformanceConfig {
   memoryLimit?: number; // in bytes
@@ -130,6 +102,7 @@ export interface PerformanceConfig {
 }
 
 export interface CoreConfig {
+  debug?: boolean;
   session?: SessionConfig;
   network?: NetworkMonitorConfig;
   console?: ConsoleLoggerConfig;
@@ -143,5 +116,15 @@ export interface SessionCore {
   networkMonitor: NetworkMonitor;
   consoleLogger: ConsoleLogger;
   breadcrumbs: Breadcrumbs;
-  aggregator: DataAggregator;
+}
+
+export interface ExportedSession {
+  sessionId: string;
+  startTime: number;
+  endTime?: number;
+  metadata?: Record<string, any>;
+  rrwebEvents: eventWithTime[];
+  networkRequests: NetworkRequest[];
+  breadcrumbs: Breadcrumb[];
+  consoleLogs: ConsoleLog[];
 }

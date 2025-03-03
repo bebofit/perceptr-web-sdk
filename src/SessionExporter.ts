@@ -1,70 +1,55 @@
 import type {
   ExportedSession,
-  SessionData,
   NetworkRequest,
   ConsoleLog,
   Breadcrumb,
-  SessionAggregator,
-  SessionEvent,
 } from "./types";
-
+import type { eventWithTime } from "@rrweb/types";
 export class SessionExporter {
-  private readonly sessionData: SessionData;
+  private readonly sessionId: string;
+  private readonly startTime: number;
+  private readonly endTime: number;
+  private readonly sessionEvents: eventWithTime[];
   private readonly networkRequests: NetworkRequest[];
   private readonly consoleLogs: ConsoleLog[];
   private readonly breadcrumbs: Breadcrumb[];
   private readonly metadata?: Record<string, any>;
 
   constructor(
-    sessionData: SessionData,
+    sessionId: string,
+    startTime: number,
+    endTime: number,
+    sessionEvents: eventWithTime[],
     networkRequests: NetworkRequest[] = [],
     consoleLogs: ConsoleLog[] = [],
     breadcrumbs: Breadcrumb[] = [],
     metadata?: Record<string, any>
   ) {
-    this.sessionData = sessionData;
+    this.sessionId = sessionId;
+    this.startTime = startTime;
+    this.endTime = endTime;
+    this.sessionEvents = sessionEvents;
     this.networkRequests = networkRequests;
     this.consoleLogs = consoleLogs;
     this.breadcrumbs = breadcrumbs;
     this.metadata = metadata;
   }
 
-  public exportSession(): string {
+  public sendEventToServer() {
+    // TODO: Implement this
+  }
+
+   public exportSession(): ExportedSession {
     const exportData: ExportedSession = {
-      sessionId: this.sessionData.sessionId,
-      startTime: this.sessionData.startTime,
-      endTime: this.sessionData.endTime,
+      sessionId: this.sessionId,
+      startTime: this.startTime,
+      endTime: this.endTime,
       metadata: this.metadata,
-      rrwebEvents: this.sessionData.events,
+      rrwebEvents: this.sessionEvents,
       networkRequests: this.networkRequests,
       breadcrumbs: this.breadcrumbs,
       consoleLogs: this.consoleLogs,
     };
-
-    return JSON.stringify(exportData);
-  }
-
-  public static fromAggregator(aggregator: SessionAggregator): SessionExporter {
-    const events = aggregator.events;
-
-    return new SessionExporter(
-      {
-        sessionId: aggregator.sessionId,
-        startTime: aggregator.startTime,
-        endTime: aggregator.endTime,
-        events: events
-          .filter((e) => e.type === "rrweb")
-          .map((e) => e.data) as SessionEvent[],
-      },
-      events
-        .filter((e) => e.type === "network")
-        .map((e) => e.data) as NetworkRequest[],
-      events
-        .filter((e) => e.type === "console")
-        .map((e) => e.data) as ConsoleLog[],
-      events
-        .filter((e) => e.type === "breadcrumb")
-        .map((e) => e.data) as Breadcrumb[]
-    );
+    return exportData;
   }
 }
