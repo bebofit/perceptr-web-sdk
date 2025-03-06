@@ -1,3 +1,5 @@
+import { MemoryEstimate, Memory } from "./types";
+
 declare global {
   interface Performance {
     measureUserAgentSpecificMemory(): Promise<MemoryEstimate>;
@@ -5,20 +7,6 @@ declare global {
   }
 }
 
-export interface Memory {
-  totalJSHeapSize: number;
-  usedJSHeapSize: number;
-  jsHeapSizeLimit: number;
-}
-
-export interface MemoryEstimate {
-  bytes: number;
-  breakdown: Array<{
-    bytes: number;
-    attribution: Array<string>;
-    types: Array<string>;
-  }>;
-}
 
 export class PerformanceMonitor {
   private static readonly MB = 1024 * 1024;
@@ -95,13 +83,5 @@ export class PerformanceMonitor {
       return true;
     }
     return false;
-  }
-}
-
-export function scheduleIdleTask(task: () => void, timeout = 1000): void {
-  if (typeof window.requestIdleCallback !== "undefined") {
-    window.requestIdleCallback(task, { timeout });
-  } else {
-    setTimeout(task, timeout);
   }
 }

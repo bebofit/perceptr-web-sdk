@@ -1,11 +1,13 @@
 import { record} from "rrweb";
 import type { SessionConfig } from "./types";
 import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
-import type { eventWithTime } from "@rrweb/types";
+import type { eventWithTime, IncrementalSource } from "@rrweb/types";
+import { ACTIVE_SOURCES, INCREMENTAL_SNAPSHOT_EVENT_TYPE } from "./common/defaults";
 
 export class SessionRecorder {
   private events: eventWithTime[] = [];
   private isRecording = false;
+  private isPaused = false;
   private stopFn?: () => void;
   private idleTimeout?: any;
   private readonly config: Required<SessionConfig>;
@@ -35,7 +37,7 @@ export class SessionRecorder {
       maskTextClass: config.maskTextClass ?? "perceptr-mask",
       blockSelector: config.blockSelector ?? "",
       maskTextSelector: config.maskTextSelector ?? "",
-      idleTimeout: config.idleTimeout ?? 60000, // 1 minute default
+      idleTimeout: config.idleTimeout ?? 10000, // 10 seconds default
     };
   }
 
@@ -45,8 +47,9 @@ export class SessionRecorder {
     }
     this.stopFn = record({
       emit: (event) => {
-        this.addEvent(event);
+          this.addEvent(event);
       },
+      checkoutEveryNms: 10000, // takes a snapshot every 10 seconds event 2 
       plugins: [
         // event type === '6' is console log
         getRecordConsolePlugin({
@@ -67,6 +70,7 @@ export class SessionRecorder {
     });
 
     this.isRecording = true;
+    this.isPaused = false;
     this.resetIdleTimeout();
   }
 
@@ -82,34 +86,49 @@ export class SessionRecorder {
     }
     this.events = [];
     this.isRecording = false;
+    this.isPaused = false;
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);
     }
   }
 
   public pause(): void {
-    if (!this.isRecording || !this.stopFn) {
+    if (!this.isRecording || this.isPaused) {
       return;
     }
 
-    this.stopFn();
-    this.isRecording = false;
+    this.isPaused = true;
+    if (this.debug) {
+      console.debug("[SDK] Recording paused");
+    }
   }
 
   public resume(): void {
-    if (this.isRecording) {
+    if (!this.isRecording || !this.isPaused) {
       return;
     }
 
-    this.startSession();
+    this.isPaused = false;
+    this.resetIdleTimeout();
+    if (this.debug) {
+      console.debug("[SDK] Recording resumed");
+    }
   }
 
   private addEvent(event: eventWithTime): void {
+    // If the event is an interactive event, resume the recording
+    // otherwise the idle timeout will pause the recording
+    if (this.isInteractiveEvent(event)) {
+      this.resume();
+    }
+    // If the recording is paused, don't add the event
+    if(this.isRecording && this.isPaused) {
+      return;
+    }
     this.events.push(event);
     if (this.events.length > this.config.maxEvents) {
       this.events.shift();
     }
-    this.resetIdleTimeout();
   }
 
   private resetIdleTimeout(): void {
@@ -118,8 +137,10 @@ export class SessionRecorder {
     }
 
     this.idleTimeout = setTimeout(() => {
-      // TODO: Uncomment this when we have a way to resume the recording
-      // this.pause();
+      if (this.isRecording && !this.isPaused) {
+        this.pause();
+        this.idleTimeout = undefined;
+      }
     }, this.config.idleTimeout);
   }
 
@@ -129,4 +150,11 @@ export class SessionRecorder {
     }
     return this.events;
   }
+
+  private isInteractiveEvent(event: eventWithTime) {
+    return (
+        event.type === INCREMENTAL_SNAPSHOT_EVENT_TYPE &&
+        ACTIVE_SOURCES.indexOf(event.data?.source as IncrementalSource) !== -1
+    )
+}
 }

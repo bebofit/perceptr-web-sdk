@@ -1,4 +1,3 @@
-import { Breadcrumbs } from "../Breadcrumbs";
 import { ConsoleLogger } from "../ConsoleLogger";
 import { NetworkMonitor } from "../NetworkMonitor";
 import { SessionRecorder } from "../SessionRecorder";
@@ -53,29 +52,6 @@ export interface NetworkMonitorConfig {
   excludeUrls?: RegExp[];
 }
 
-export interface Breadcrumb {
-  id: string;
-  timestamp: number;
-  category: "user" | "error" | "navigation" | "input" | "custom";
-  type: string;
-  message: string;
-  level: "info" | "warning" | "error";
-  data?: Record<string, any>;
-}
-
-export interface BreadcrumbsConfig {
-  maxBreadcrumbs?: number;
-  enableAutoCapture?: boolean;
-  dom?: {
-    clickTargets?: boolean;
-    inputSummary?: boolean;
-    inputDebounceMs?: number;
-  };
-  console?: {
-    levels?: ("log" | "info" | "warn" | "error")[];
-  };
-}
-
 export interface ConsoleLog {
   id: string;
   timestamp: number;
@@ -106,7 +82,6 @@ export interface CoreConfig {
   session?: SessionConfig;
   network?: NetworkMonitorConfig;
   console?: ConsoleLoggerConfig;
-  breadcrumbs?: BreadcrumbsConfig;
   metadata?: Record<string, any>;
   performance?: PerformanceConfig;
 }
@@ -115,7 +90,6 @@ export interface SessionCore {
   sessionRecorder: SessionRecorder;
   networkMonitor: NetworkMonitor;
   consoleLogger: ConsoleLogger;
-  breadcrumbs: Breadcrumbs;
 }
 
 export interface ExportedSession {
@@ -125,6 +99,20 @@ export interface ExportedSession {
   metadata?: Record<string, any>;
   rrwebEvents: eventWithTime[];
   networkRequests: NetworkRequest[];
-  breadcrumbs: Breadcrumb[];
   consoleLogs: ConsoleLog[];
+}
+
+export interface Memory {
+  totalJSHeapSize: number;
+  usedJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+export interface MemoryEstimate {
+  bytes: number;
+  breakdown: Array<{
+    bytes: number;
+    attribution: Array<string>;
+    types: Array<string>;
+  }>;
 }

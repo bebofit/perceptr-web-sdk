@@ -1,10 +1,10 @@
-import { Breadcrumbs } from "./Breadcrumbs";
 import { ConsoleLogger } from "./ConsoleLogger";
 import { NetworkMonitor } from "./NetworkMonitor";
 import { SessionExporter } from "./SessionExporter";
 import { SessionRecorder } from "./SessionRecorder";
+import { PerformanceMonitor } from "./PerformanceMonitor";
 import { SessionCore, CoreConfig, ExportedSession } from "./types";
-import { PerformanceMonitor, scheduleIdleTask } from "./utils/performance";
+import { scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { v4 as uuidv4 } from "uuid";
 import {
   ErrorCode,
@@ -31,7 +31,6 @@ export class Core {
         sessionRecorder: new SessionRecorder(config.session, config.debug),
         networkMonitor: new NetworkMonitor(config.network, config.debug),
         consoleLogger: new ConsoleLogger(config.console, config.debug),
-        breadcrumbs: new Breadcrumbs(config.breadcrumbs, config.debug),
       };
 
       this.performanceMonitor = new PerformanceMonitor(
@@ -76,7 +75,6 @@ export class Core {
 
       // Start critical components immediately
       this.safelyEnableComponent("sessionRecorder", "startSession");
-      this.safelyEnableComponent("breadcrumbs");
 
       this.isEnabled = true;
 
@@ -124,7 +122,6 @@ export class Core {
       return new Promise<ExportedSession>((resolve, reject) => {
         scheduleIdleTask(() => {
           try {
-
             // Create the exporter
             const exporter = new SessionExporter(
               this.sessionId,
@@ -133,7 +130,6 @@ export class Core {
               this.components.sessionRecorder.getRecordingEvents(),
               this.components.networkMonitor.getRequests(),
               this.components.consoleLogger.getLogs(),
-              this.components.breadcrumbs.getBreadcrumbs()
             );
             this.isEnabled = false;
             
@@ -143,7 +139,6 @@ export class Core {
             this.components.sessionRecorder.stopSession();
             this.components.networkMonitor.disable();
             this.components.consoleLogger.disable();
-            this.components.breadcrumbs.disable();
 
             // Export the session data
             resolve(exporter.exportSession());
@@ -186,7 +181,6 @@ export class Core {
     this.components.sessionRecorder.pause();
     this.components.networkMonitor.disable();
     this.components.consoleLogger.disable();
-    this.components.breadcrumbs.disable();
     this.performanceMonitor.stop();
   }
 
@@ -196,7 +190,6 @@ export class Core {
     this.components.sessionRecorder.resume();
     this.components.networkMonitor.enable();
     this.components.consoleLogger.enable();
-    this.components.breadcrumbs.enable();
     this.performanceMonitor.start();
   }
 

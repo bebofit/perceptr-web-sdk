@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { PerformanceMonitor } from "../utils/performance";
+import { PerformanceMonitor } from "../PerformanceMonitor";
 import { mockPerformanceAPI } from "./testHelpers";
 
 describe("PerformanceMonitor", () => {
