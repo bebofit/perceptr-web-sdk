@@ -29,6 +29,7 @@ export interface SessionData {
 }
 
 export interface NetworkRequest {
+  type: 7,
   id: string;
   timestamp: number;
   duration: number;
@@ -47,8 +48,10 @@ export interface NetworkMonitorConfig {
   maxRequests?: number;
   sanitizeHeaders?: string[];
   sanitizeParams?: string[];
+  sanitizeBodyFields?: string[];
   captureRequestBody?: boolean;
   captureResponseBody?: boolean;
+  maxBodySize?: number;
   excludeUrls?: RegExp[];
 }
 

@@ -12,9 +12,11 @@ export class NetworkMonitor {
   private readonly config: Required<NetworkMonitorConfig> = {
     maxRequests: 1000,
     sanitizeHeaders: ["authorization", "cookie", "x-auth-token"],
-    sanitizeParams: ["password", "token", "secret"],
-    captureRequestBody: false,
-    captureResponseBody: false,
+    sanitizeParams: ["password", "token", "secret", "key", "apikey", "api_key", "access_token"],
+    sanitizeBodyFields: ["password", "token", "secret", "key", "apikey", "api_key", "access_token", "credit_card", "creditCard", "cvv", "ssn"],
+    captureRequestBody: true,
+    captureResponseBody: true,
+    maxBodySize: 100 * 1024, // 100KB default
     excludeUrls: [/\/logs$/, /\/health$/],
   };
 
@@ -63,6 +65,35 @@ export class NetworkMonitor {
     return !this.config.excludeUrls.some((pattern) => pattern.test(url)) && !url.includes('/per/');
   }
 
+  private sanitizeUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      const params = new URLSearchParams(urlObj.search);
+      let sanitized = false;
+
+      for (const [key] of params.entries()) {
+        if (this.shouldSanitizeParam(key)) {
+          params.set(key, "[REDACTED]");
+          sanitized = true;
+        }
+      }
+
+      if (sanitized) {
+        urlObj.search = params.toString();
+        return urlObj.toString();
+      }
+    } catch (e) {
+      // If URL parsing fails, return the original URL
+    }
+    return url;
+  }
+
+  private shouldSanitizeParam(param: string): boolean {
+    return this.config.sanitizeParams.some(
+      (pattern) => param.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+
   private sanitizeHeaders(
     headers: Record<string, string>
   ): Record<string, string> {
@@ -75,18 +106,85 @@ export class NetworkMonitor {
     return sanitized;
   }
 
-  private sanitizeUrl(url: string): string {
-    const urlObj = new URL(url);
-    const params = new URLSearchParams(urlObj.search);
-
-    this.config.sanitizeParams.forEach((param) => {
-      if (params.has(param)) {
-        params.set(param, "[REDACTED]");
+  private sanitizeBody(body: any): any {
+    if (!body) return body;
+    
+    // Handle string bodies (try to parse as JSON)
+    if (typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body);
+        return JSON.stringify(this.sanitizeObjectBody(parsed));
+      } catch (e) {
+        // Not JSON, return as is or truncate if too large
+        return this.truncateBody(body);
       }
-    });
-
-    urlObj.search = params.toString();
-    return urlObj.toString();
+    }
+    
+    // Handle FormData
+    if (body instanceof FormData) {
+      const sanitized = new FormData();
+      for (const [key, value] of body.entries()) {
+        if (this.shouldSanitizeBodyField(key)) {
+          sanitized.append(key, "[REDACTED]");
+        } else {
+          sanitized.append(key, value);
+        }
+      }
+      return sanitized;
+    }
+    
+    // Handle URLSearchParams
+    if (body instanceof URLSearchParams) {
+      const sanitized = new URLSearchParams();
+      for (const [key, value] of body.entries()) {
+        if (this.shouldSanitizeBodyField(key)) {
+          sanitized.append(key, "[REDACTED]");
+        } else {
+          sanitized.append(key, value);
+        }
+      }
+      return sanitized;
+    }
+    
+    // Handle plain objects
+    if (typeof body === 'object' && body !== null) {
+      return this.sanitizeObjectBody(body);
+    }
+    
+    return this.truncateBody(body);
+  }
+  
+  private sanitizeObjectBody(obj: any): any {
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeObjectBody(item));
+    }
+    
+    if (typeof obj === 'object' && obj !== null) {
+      const result = { ...obj };
+      for (const key in result) {
+        if (this.shouldSanitizeBodyField(key)) {
+          result[key] = "[REDACTED]";
+        } else if (typeof result[key] === 'object' && result[key] !== null) {
+          result[key] = this.sanitizeObjectBody(result[key]);
+        }
+      }
+      return result;
+    }
+    
+    return obj;
+  }
+  
+  private shouldSanitizeBodyField(field: string): boolean {
+    return this.config.sanitizeBodyFields.some(
+      (pattern) => field.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+  
+  private truncateBody(body: any): any {
+    if (typeof body === 'string' && body.length > this.config.maxBodySize) {
+      return body.substring(0, this.config.maxBodySize) + '... [truncated]';
+    }
+    return body;
   }
 
   private addRequest(request: NetworkRequest): void {
@@ -104,6 +202,12 @@ export class NetworkMonitor {
 
       const startTime = Date.now();
       const requestId = uuidv4();
+      let requestBody: any = undefined;
+
+      // Capture and sanitize request body if enabled
+      if (this.config.captureRequestBody && init?.body) {
+        requestBody = this.sanitizeBody(init.body);
+      }
 
       try {
         const response = await this.originalFetch(input, init);
@@ -120,6 +224,7 @@ export class NetworkMonitor {
         );
 
         const request: NetworkRequest = {
+          type: 7,
           id: requestId,
           timestamp: startTime,
           duration,
@@ -131,14 +236,15 @@ export class NetworkMonitor {
           responseHeaders,
         };
 
-        if (this.config.captureRequestBody && init?.body) {
-          request.requestBody = init.body;
+        if (requestBody) {
+          request.requestBody = requestBody;
         }
 
         if (this.config.captureResponseBody) {
           const clonedResponse = response.clone();
           try {
-            request.responseBody = await clonedResponse.text();
+            const responseText = await clonedResponse.text();
+            request.responseBody = this.sanitizeBody(responseText);
           } catch (e) {
             // Ignore response body capture errors
           }
@@ -149,6 +255,7 @@ export class NetworkMonitor {
       } catch (error) {
         const duration = Date.now() - startTime;
         this.addRequest({
+          type: 7,
           id: requestId,
           timestamp: startTime,
           duration,
@@ -160,6 +267,7 @@ export class NetworkMonitor {
               )
             : {},
           responseHeaders: {},
+          requestBody: requestBody,
           error: error.message,
         });
         throw error;
@@ -196,10 +304,17 @@ export class NetworkMonitor {
       }
 
       const requestData = this.__requestData;
+      let sanitizedBody: any = undefined;
+      
+      // Capture and sanitize request body if enabled
+      if (self.config.captureRequestBody && body) {
+        sanitizedBody = self.sanitizeBody(body);
+      }
 
       this.addEventListener("load", function () {
         const duration = Date.now() - requestData.startTime;
         const request: NetworkRequest = {
+          type: 7,
           id: requestData.id,
           timestamp: requestData.startTime,
           duration,
@@ -219,12 +334,12 @@ export class NetworkMonitor {
           responseHeaders: {},
         };
 
-        if (self.config.captureRequestBody && body) {
-          request.requestBody = body;
+        if (sanitizedBody) {
+          request.requestBody = sanitizedBody;
         }
 
         if (self.config.captureResponseBody) {
-          request.responseBody = this.responseText;
+          request.responseBody = self.sanitizeBody(this.responseText);
         }
 
         self.addRequest(request);
@@ -233,6 +348,7 @@ export class NetworkMonitor {
       this.addEventListener("error", function () {
         const duration = Date.now() - requestData.startTime;
         self.addRequest({
+          type: 7,
           id: requestData.id,
           timestamp: requestData.startTime,
           duration,
@@ -240,6 +356,7 @@ export class NetworkMonitor {
           url: self.sanitizeUrl(requestData.url),
           requestHeaders: {},
           responseHeaders: {},
+          requestBody: sanitizedBody,
           error: "Network error",
         });
       });
