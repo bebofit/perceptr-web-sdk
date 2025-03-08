@@ -1,6 +1,7 @@
 import type { eventWithTime, pluginEvent } from '@rrweb/types'
 import { isObject } from './type-utils'
 import { MAX_MESSAGE_SIZE, replacementImageURI, PLUGIN_EVENT_TYPE, CONSOLE_LOG_PLUGIN_NAME } from '../common/defaults'
+import { SessionRecordingUrlTrigger } from '../types'
 
 // taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Cyclic_object_value#circular_references
 export function circularReferenceReplacer() {
@@ -99,6 +100,17 @@ export function truncateLargeConsoleLogs(_event: eventWithTime) {
     return _event
 }
 
+
+export function sessionRecordingUrlTriggerMatches(url: string, triggers: SessionRecordingUrlTrigger[]) {
+    return triggers.some((trigger) => {
+        switch (trigger.matching) {
+            case 'regex':
+                return new RegExp(trigger.url).test(url)
+            default:
+                return false
+        }
+    })
+}
 
 export function scheduleIdleTask(task: () => void, timeout = 1000): void {
     if (typeof window.requestIdleCallback !== "undefined") {

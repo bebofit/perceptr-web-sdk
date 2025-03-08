@@ -1,10 +1,10 @@
-import { ConsoleLogger } from "../ConsoleLogger";
 import { NetworkMonitor } from "../NetworkMonitor";
 import { SessionRecorder } from "../SessionRecorder";
 import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
 import type { eventWithTime } from "@rrweb/types";
 
 export interface SessionConfig {
+  urlBlocklist?: SessionRecordingUrlTrigger[];
   maxEvents?: number;
   sampling?: {
     mousemove?: number;
@@ -110,4 +110,9 @@ export interface SnapshotBuffer {
   endTime?: number;
   sessionId: string;
   metadata?: Record<string, any>;
+}
+
+export interface SessionRecordingUrlTrigger {
+  url: string
+  matching: 'regex'
 }
