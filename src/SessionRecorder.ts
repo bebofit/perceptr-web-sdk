@@ -47,7 +47,7 @@ export class SessionRecorder {
     }
     this.stopFn = record({
       emit: (event) => {
-          this.addEvent(event);
+          this.canAddEvent(event);
       },
       checkoutEveryNms: 10000, // takes a snapshot every 10 seconds event 2 
       plugins: [
@@ -109,26 +109,27 @@ export class SessionRecorder {
     }
 
     this.isPaused = false;
-    this.resetIdleTimeout();
     if (this.debug) {
       console.debug("[SDK] Recording resumed");
     }
   }
 
-  private addEvent(event: eventWithTime): void {
+  private canAddEvent(event: eventWithTime): boolean {
     // If the event is an interactive event, resume the recording
     // otherwise the idle timeout will pause the recording
     if (this.isInteractiveEvent(event)) {
+      this.resetIdleTimeout();
       this.resume();
     }
     // If the recording is paused, don't add the event
     if(this.isRecording && this.isPaused) {
-      return;
+      return false;
     }
     this.events.push(event);
     if (this.events.length > this.config.maxEvents) {
       this.events.shift();
     }
+    return true;
   }
 
   private resetIdleTimeout(): void {
@@ -156,5 +157,22 @@ export class SessionRecorder {
         event.type === INCREMENTAL_SNAPSHOT_EVENT_TYPE &&
         ACTIVE_SOURCES.indexOf(event.data?.source as IncrementalSource) !== -1
     )
+}
+
+public onEvent(callback: (event: eventWithTime) => void): () => void {
+  const originalAddEvent = this.canAddEvent;
+  this.canAddEvent = (event) => {
+    const canBeAdded = originalAddEvent.call(this, event);
+    if(canBeAdded) {
+      // if the event can be added, call the callback to add it to the buffer
+      callback(event);
+    }
+    return canBeAdded;
+  };
+  
+  // Return a function to unsubscribe
+  return () => {
+    this.canAddEvent = originalAddEvent;
+  };
 }
 }

@@ -60,7 +60,7 @@ export class NetworkMonitor {
   }
 
   private shouldCaptureUrl(url: string): boolean {
-    return !this.config.excludeUrls.some((pattern) => pattern.test(url));
+    return !this.config.excludeUrls.some((pattern) => pattern.test(url)) && !url.includes('/per/');
   }
 
   private sanitizeHeaders(
@@ -245,6 +245,19 @@ export class NetworkMonitor {
       });
 
       return self.originalXHRSend.call(this, body);
+    };
+  }
+
+  public onRequest(callback: (request: NetworkRequest) => void): () => void {
+    const originalAddRequest = this.addRequest;
+    this.addRequest = (request) => {
+      originalAddRequest.call(this, request);
+      callback(request);
+    };
+    
+    // Return a function to unsubscribe
+    return () => {
+      this.addRequest = originalAddRequest;
     };
   }
 }

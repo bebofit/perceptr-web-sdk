@@ -6,6 +6,7 @@
   },
   "dependencies": {
     "@rrweb/rrweb-plugin-console-record": "^2.0.0-alpha.18",
+    "axios": "^1.8.1",
     "rrweb": "^2.0.0-alpha.4",
     "uuid": "^11.1.0"
   },

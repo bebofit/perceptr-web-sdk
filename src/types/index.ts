@@ -116,3 +116,14 @@ export interface MemoryEstimate {
     types: Array<string>;
   }>;
 }
+
+export type EventType = eventWithTime | NetworkRequest | ConsoleLog;
+
+export interface SnapshotBuffer {
+  size: number
+  data: EventType[]
+  startTime: number;
+  endTime?: number;
+  sessionId: string;
+  metadata?: Record<string, any>;
+}

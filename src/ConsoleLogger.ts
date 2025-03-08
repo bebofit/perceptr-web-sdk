@@ -79,6 +79,10 @@ export class ConsoleLogger {
   }
 
   private captureLog(level: ConsoleLog["level"], args: any[]): void {
+    // Ignore SDK internal logs
+    if (args.some(arg => typeof arg === 'string' && arg.includes('[SDK]'))) {
+      return;
+    }
     const log: ConsoleLog = {
       id: uuidv4(),
       timestamp: Date.now(),
@@ -129,5 +133,19 @@ export class ConsoleLogger {
         return String(arg);
       }
     });
+  }
+
+  public onLog(callback: (log: ConsoleLog) => void): () => void {
+    const originalCaptureLog = this.captureLog;
+    this.captureLog = (level, args) => {
+      const log = originalCaptureLog.call(this, level, args);
+      callback(log);
+      return log;
+    };
+    
+    // Return a function to unsubscribe
+    return () => {
+      this.captureLog = originalCaptureLog;
+    };
   }
 }
