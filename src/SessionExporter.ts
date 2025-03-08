@@ -1,7 +1,6 @@
 import type {
   ExportedSession,
   NetworkRequest,
-  ConsoleLog,
 } from "./types";
 import type { eventWithTime } from "@rrweb/types";
 export class SessionExporter {
@@ -10,7 +9,6 @@ export class SessionExporter {
   private readonly endTime: number;
   private readonly sessionEvents: eventWithTime[];
   private readonly networkRequests: NetworkRequest[];
-  private readonly consoleLogs: ConsoleLog[];
   private readonly metadata?: Record<string, any>;
 
   constructor(
@@ -19,7 +17,6 @@ export class SessionExporter {
     endTime: number,
     sessionEvents: eventWithTime[],
     networkRequests: NetworkRequest[] = [],
-    consoleLogs: ConsoleLog[] = [],
     metadata?: Record<string, any>
   ) {
     this.sessionId = sessionId;
@@ -27,7 +24,6 @@ export class SessionExporter {
     this.endTime = endTime;
     this.sessionEvents = sessionEvents;
     this.networkRequests = networkRequests;
-    this.consoleLogs = consoleLogs;
     this.metadata = metadata;
   }
 
@@ -43,7 +39,6 @@ export class SessionExporter {
       metadata: this.metadata,
       rrwebEvents: this.sessionEvents,
       networkRequests: this.networkRequests,
-      consoleLogs: this.consoleLogs,
     };
     return exportData;
   }

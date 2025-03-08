@@ -52,20 +52,6 @@ export interface NetworkMonitorConfig {
   excludeUrls?: RegExp[];
 }
 
-export interface ConsoleLog {
-  id: string;
-  timestamp: number;
-  level: "log" | "info" | "warn" | "error" | "debug";
-  args: any[];
-  stack?: string;
-}
-
-export interface ConsoleLoggerConfig {
-  maxLogs?: number;
-  ignore?: ConsoleLog["level"][];
-  maxPayloadSize?: number;
-  captureStack?: boolean;
-}
 
 
 export interface PerformanceConfig {
@@ -81,7 +67,7 @@ export interface CoreConfig {
   debug?: boolean;
   session?: SessionConfig;
   network?: NetworkMonitorConfig;
-  console?: ConsoleLoggerConfig;
+  console?: Parameters<typeof getRecordConsolePlugin>[0];
   metadata?: Record<string, any>;
   performance?: PerformanceConfig;
 }
@@ -89,7 +75,6 @@ export interface CoreConfig {
 export interface SessionCore {
   sessionRecorder: SessionRecorder;
   networkMonitor: NetworkMonitor;
-  consoleLogger: ConsoleLogger;
 }
 
 export interface ExportedSession {
@@ -99,7 +84,6 @@ export interface ExportedSession {
   metadata?: Record<string, any>;
   rrwebEvents: eventWithTime[];
   networkRequests: NetworkRequest[];
-  consoleLogs: ConsoleLog[];
 }
 
 export interface Memory {
@@ -117,7 +101,7 @@ export interface MemoryEstimate {
   }>;
 }
 
-export type EventType = eventWithTime | NetworkRequest | ConsoleLog;
+export type EventType = eventWithTime | NetworkRequest;
 
 export interface SnapshotBuffer {
   size: number
