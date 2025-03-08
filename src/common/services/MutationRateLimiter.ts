@@ -75,12 +75,12 @@ export class MutationRateLimiter {
     );
   };
 
-  public throttleMutations = (event: eventWithTime) => {
+  public throttleMutations = (event: eventWithTime): boolean => {
     if (
       event.type !== INCREMENTAL_SNAPSHOT_EVENT_TYPE ||
       event.data.source !== MUTATION_SOURCE_TYPE
     ) {
-      return event;
+      return false;
     }
 
     const data = event.data as Partial<mutationCallbackParam>;
@@ -118,8 +118,8 @@ export class MutationRateLimiter {
 
     if (mutationCount === 0 && initialMutationCount !== mutationCount) {
       // If we have modified the mutation count and the remaining count is 0, then we don't need the event.
-      return;
+      return true;
     }
-    return event;
+    return false;
   };
 }

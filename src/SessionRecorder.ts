@@ -1,5 +1,5 @@
 import { EventType, record } from "rrweb";
-import type { SessionConfig } from "./types";
+import type { MutationThrottlingConfig, SessionConfig } from "./types";
 import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
 import type { eventWithTime, IncrementalSource, metaEvent } from "@rrweb/types";
 import {
@@ -7,6 +7,7 @@ import {
   INCREMENTAL_SNAPSHOT_EVENT_TYPE,
 } from "./common/defaults";
 import { sessionRecordingUrlTriggerMatches } from "./utils/sessionrecording-utils";
+import { MutationRateLimiter } from "./common/services/mutationRateLimiter";
 
 export class SessionRecorder {
   private events: eventWithTime[] = [];
@@ -16,8 +17,10 @@ export class SessionRecorder {
   private _idleTimeout?: any;
   private readonly config: Required<SessionConfig>;
   private readonly _debug: boolean;
+  private readonly _mutationConfig: MutationThrottlingConfig;
   private _lastHref?: string;
   private _isUrlBlocked = false;
+  private mutationRateLimiter: MutationRateLimiter;
 
   constructor(config: SessionConfig = {}, debug: boolean = false) {
     this._debug = debug;
@@ -46,6 +49,24 @@ export class SessionRecorder {
       maskTextSelector: config.maskTextSelector ?? "",
       idleTimeout: config.idleTimeout ?? 10000, // 10 seconds default
     };
+
+    // Internal mutation throttling configuration
+    this._mutationConfig = {
+      enabled: true,
+      bucketSize: 100,
+      refillRate: 10
+    };
+
+    // Initialize the mutation rate limiter
+    this.mutationRateLimiter = new MutationRateLimiter(record, {
+      bucketSize: this._mutationConfig.bucketSize,
+      refillRate: this._mutationConfig.refillRate,
+      onBlockedNode: (id, node) => {
+        if (this._debug) {
+          console.debug(`[SDK] Throttling mutations for node ${id}`, node);
+        }
+      }
+    });
   }
 
   public startSession(): void {
@@ -54,6 +75,12 @@ export class SessionRecorder {
     }
     this.stopFn = record({
       emit: (event) => {
+        // Apply mutation rate limiting before processing the event
+        if (this._mutationConfig.enabled) {
+          const throttledEvent = this.mutationRateLimiter.throttleMutations(event);
+          // If the event was completely throttled, don't process it
+          if (throttledEvent) return;
+        }
         this._canAddEvent(event);
       },
       checkoutEveryNms: 10000, // takes a snapshot every 10 seconds event 2

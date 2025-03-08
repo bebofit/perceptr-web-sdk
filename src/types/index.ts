@@ -20,6 +20,13 @@ export interface SessionConfig {
   console?: Parameters<typeof getRecordConsolePlugin>[0];
 }
 
+// Internal configuration for mutation throttling
+export interface MutationThrottlingConfig {
+  enabled: boolean;
+  bucketSize: number;
+  refillRate: number;
+}
+
 
 export interface SessionData {
   sessionId: string;
