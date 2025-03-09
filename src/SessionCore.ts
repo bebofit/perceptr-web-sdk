@@ -73,21 +73,21 @@ export class Core {
   public identify(distinctId: string, traits: Record<string, any> = {}): void {
     this.userIdentity = {
       distinctId,
-      ...traits
+      ...traits,
     };
-    
+
     if (this.config.debug) {
       console.debug(`[SDK] User identified: ${distinctId}`, traits);
     }
-    
+
     // If we have an active buffer, update it with the user identity
     this.eventBuffer.setUserIdentity(this.userIdentity);
-    
+
     // Send an identify event to the session recorder
     if (this.isEnabled && this.components.sessionRecorder) {
       this.components.sessionRecorder.addCustomEvent("$identify", {
         distinctId,
-        ...traits
+        ...traits,
       });
     }
   }
@@ -98,7 +98,6 @@ export class Core {
       if (this.userIdentity) {
         buffer.userIdentity = this.userIdentity;
       }
-      
       await this.apiService.sendEvents(buffer);
     } catch (error) {
       emitError({
@@ -106,6 +105,7 @@ export class Core {
         message: "Failed to send events to server",
         originalError: error,
       });
+      throw error;
     }
   }
 
@@ -196,7 +196,7 @@ export class Core {
 
     try {
       // Flush the buffer
-      await this.eventBuffer.flush();
+      await this.eventBuffer.flush(true);
 
       // Aggregate and export data
       return new Promise<ExportedSession>((resolve, reject) => {
