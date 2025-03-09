@@ -192,7 +192,7 @@ export class Core {
 
   public async stop(): Promise<ExportedSession> {
     if (!this.isEnabled) {
-      throw new Error("SDK is not enabled");
+      throw new Error("[SDK] is not enabled");
     }
 
     try {

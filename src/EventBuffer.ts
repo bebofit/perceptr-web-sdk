@@ -10,7 +10,8 @@ import {
   scheduleIdleTask,
   splitBuffer,
 } from "./utils/sessionrecording-utils";
-import { SEVEN_MEGABYTES } from "./common/defaults";
+import { CONSOLE_LOG_PLUGIN_NAME, SEVEN_MEGABYTES } from "./common/defaults";
+import { LogData } from "@rrweb/rrweb-plugin-console-record";
 
 // Internal configuration - not exposed to users
 interface InternalBufferConfig {
@@ -239,6 +240,11 @@ export class EventBuffer {
   }
 
   public addEvent(event: EventType): void {
+    // Skip internal SDK logs
+    if (this.isInternalSdkLog(event)) {
+      return;
+    }
+
     // Estimate the size of the event
     const eventSize = estimateSize(event);
     const now = Date.now();
@@ -471,5 +477,27 @@ export class EventBuffer {
       clearTimeout(this.flushTimer);
     }
     this.startFlushTimer();
+  }
+
+  /**
+   * Check if an event is an internal SDK log that should be filtered out
+   */
+  private isInternalSdkLog(event: EventType): boolean {
+    // Check if it's a console event (type 6 in rrweb)
+
+    if (event.type === 6 && event.data.plugin === CONSOLE_LOG_PLUGIN_NAME) {
+      // Check if it's a console log with SDK prefix
+      const consoleData = event.data.payload as LogData;
+      if (consoleData.payload && Array.isArray(consoleData.payload)) {
+        // Check the first argument of the console log
+        const firstArg = consoleData.payload[0];
+        // If it's a string containing [SDK], it's an internal log
+        if (typeof firstArg === "string" && firstArg.includes("[SDK]")) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }
