@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import type { 
     EventType,
-  SnapshotBuffer
+  SnapshotBuffer,
+  UserIdentity
 } from "./types";
 import { estimateSize, scheduleIdleTask } from "./utils/sessionrecording-utils";
 
@@ -27,6 +28,7 @@ export class EventBuffer {
   private readonly startTime: number;
   private readonly debug: boolean;
   private readonly onFlush: (data: SnapshotBuffer) => Promise<void>;
+  private userIdentity?: UserIdentity;
 
   constructor(
     sessionId: string,
@@ -80,6 +82,16 @@ export class EventBuffer {
     }
   }
 
+  /**
+   * Set the user identity for this buffer
+   */
+  public setUserIdentity(identity: UserIdentity): void {
+    this.userIdentity = identity;
+    if (this.debug) {
+      console.debug(`[SDK] Buffer updated with user identity: ${identity.distinctId}`);
+    }
+  }
+
   public async flush(): Promise<void> {
     if (this.buffer.length === 0) return;
     
@@ -113,7 +125,8 @@ export class EventBuffer {
         bufferCount: uuidv4(),
         eventCount: bufferData.length,
         compressed: shouldCompress
-      }
+      },
+      userIdentity: this.userIdentity
     };
     
     // Compress data if needed

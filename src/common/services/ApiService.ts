@@ -1,13 +1,14 @@
 import axios from "axios";
-import type { SnapshotBuffer } from "../../types";
+import type { CoreConfig, SnapshotBuffer } from "../../types";
 
 export class ApiService {
+  private readonly host: string = "http://localhost:8000";
   private readonly apiUrl: string;
   private readonly debug: boolean;
 
-  constructor(debug: boolean = false) {
-    this.apiUrl = `http://localhost:8000/v1/per/r/`;
-    this.debug = debug;
+  constructor(config: CoreConfig) {
+    this.apiUrl = `${this.host}/v1/per/r/${config.projectId}`;
+    this.debug = config.debug ?? false;
   }
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
@@ -16,7 +17,6 @@ export class ApiService {
         console.debug(`[SDK] Sending ${buffer.data.length} events to ${this.apiUrl}`);
       }
 
-      // Use window.fetch explicitly to avoid context issues
       await axios.post(this.apiUrl, {
         headers: {
           "Content-Type": "application/json",

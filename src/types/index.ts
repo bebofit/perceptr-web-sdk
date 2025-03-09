@@ -75,11 +75,13 @@ export interface PerformanceConfig {
 
 export interface CoreConfig {
   debug?: boolean;
+  projectId: string;
   session?: SessionConfig;
   network?: NetworkMonitorConfig;
   console?: Parameters<typeof getRecordConsolePlugin>[0];
   metadata?: Record<string, any>;
   performance?: PerformanceConfig;
+  userIdentity?: UserIdentity;
 }
 
 export interface SessionCore {
@@ -94,6 +96,7 @@ export interface ExportedSession {
   metadata?: Record<string, any>;
   rrwebEvents: eventWithTime[];
   networkRequests: NetworkRequest[];
+  userIdentity?: UserIdentity;
 }
 
 export interface Memory {
@@ -120,9 +123,17 @@ export interface SnapshotBuffer {
   endTime?: number;
   sessionId: string;
   metadata?: Record<string, any>;
+  userIdentity?: UserIdentity;
 }
 
 export interface SessionRecordingUrlTrigger {
   url: string
   matching: 'regex'
+}
+
+export interface UserIdentity {
+  distinctId: string;
+  email?: string;
+  name?: string;
+  [key: string]: any; // Allow any additional properties
 }

@@ -190,7 +190,7 @@ export class SessionRecorder {
     const currentUrl = window.location.href;
     if (this._lastHref !== currentUrl) {
       this._lastHref = currentUrl;
-      this._tryAddCustomEvent("$url_changed", { href: currentUrl });
+      this.addCustomEvent("$url_changed", { href: currentUrl });
       this._shouldBlockUrl(currentUrl);
     }
   }
@@ -232,10 +232,10 @@ export class SessionRecorder {
     );
   }
 
-  private _tryAddCustomEvent(tag: string, payload: any) {
-    record.addCustomEvent(tag, payload);
-  }
-
+  /**
+   * Get the recording events
+   * @returns The recording events
+   */
   public getRecordingEvents(): eventWithTime[] {
     if (!this._isRecording) {
       throw new Error("No active recording session");
@@ -258,5 +258,27 @@ export class SessionRecorder {
     return () => {
       this._canAddEvent = originalAddEvent;
     };
+  }
+
+  /**
+   * Add a custom event to the recording
+   * @param name - Event name
+   * @param payload - Event data
+   */
+  public addCustomEvent(name: string, payload: any): void {
+    if (!this._isRecording) {
+      if (this._debug) {
+        console.warn("[SDK] Cannot add custom event: No active recording session");
+      }
+      return;
+    }
+    
+    try {
+      record.addCustomEvent(name, payload);
+    } catch (error) {
+      if (this._debug) {
+        console.error(`[SDK] Failed to add custom event: ${name}`, error);
+      }
+    }
   }
 }

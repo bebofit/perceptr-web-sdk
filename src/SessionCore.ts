@@ -9,6 +9,7 @@ import {
   CoreConfig,
   ExportedSession,
   SnapshotBuffer,
+  UserIdentity,
 } from "./types";
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { v4 as uuidv4 } from "uuid";
@@ -24,12 +25,14 @@ export class Core {
   private readonly apiService: ApiService;
   private isEnabled = false;
   private eventListeners: (() => void)[] = [];
+  private userIdentity?: UserIdentity;
 
-  constructor(config: CoreConfig = {}) {
+  constructor(config: CoreConfig) {
     this.config = config;
     this.sessionId = uuidv4();
     this.startTime = Date.now();
     this.eventListeners = [];
+    this.userIdentity = config.userIdentity;
 
     try {
       this.components = {
@@ -42,7 +45,7 @@ export class Core {
         () => this.handleMemoryLimit()
       );
 
-      this.apiService = new ApiService(config.debug);
+      this.apiService = new ApiService(config);
 
       this.eventBuffer = new EventBuffer(
         this.sessionId,
@@ -62,8 +65,40 @@ export class Core {
     }
   }
 
+  /**
+   * Identify the current user
+   * @param distinctId - Unique identifier for the user
+   * @param traits - Additional user properties
+   */
+  public identify(distinctId: string, traits: Record<string, any> = {}): void {
+    this.userIdentity = {
+      distinctId,
+      ...traits
+    };
+    
+    if (this.config.debug) {
+      console.debug(`[SDK] User identified: ${distinctId}`, traits);
+    }
+    
+    // If we have an active buffer, update it with the user identity
+    this.eventBuffer.setUserIdentity(this.userIdentity);
+    
+    // Send an identify event to the session recorder
+    if (this.isEnabled && this.components.sessionRecorder) {
+      this.components.sessionRecorder.addCustomEvent("$identify", {
+        distinctId,
+        ...traits
+      });
+    }
+  }
+
   private async sendBufferToServer(buffer: SnapshotBuffer): Promise<void> {
     try {
+      // Add user identity to the buffer before sending
+      if (this.userIdentity) {
+        buffer.userIdentity = this.userIdentity;
+      }
+      
       await this.apiService.sendEvents(buffer);
     } catch (error) {
       emitError({
@@ -173,7 +208,9 @@ export class Core {
               this.startTime,
               Date.now(),
               this.components.sessionRecorder.getRecordingEvents(),
-              this.components.networkMonitor.getRequests()
+              this.components.networkMonitor.getRequests(),
+              this.config.metadata,
+              this.userIdentity
             );
             this.isEnabled = false;
 
