@@ -5,7 +5,7 @@ import { PerformanceMonitor } from "./PerformanceMonitor";
 import { EventBuffer } from "./EventBuffer";
 import { ApiService } from "./common/services/ApiService";
 import {
-  SessionCore,
+  CoreComponents,
   CoreConfig,
   ExportedSession,
   SnapshotBuffer,
@@ -17,7 +17,7 @@ import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
 import { EventType } from "rrweb";
 
 export class Core {
-  private readonly components: SessionCore;
+  private readonly components: CoreComponents;
   private readonly config: CoreConfig;
   private readonly sessionId: string;
   private readonly startTime: number;
@@ -113,7 +113,7 @@ export class Core {
   private setupDebugListeners(): void {
     window.addEventListener("sdk-error", (event: SDKErrorEvent) => {
       const { code, message, context } = event.detail;
-      console.error(`[SDK Error] ${code}: ${message}`, context);
+      console.error(`[SDK] error: ${code}: ${message}`, context);
     });
 
     if (this.config.debug) {
@@ -170,7 +170,7 @@ export class Core {
   }
 
   private safelyEnableComponent(
-    componentName: keyof SessionCore,
+    componentName: keyof CoreComponents,
     method: "enable" | "startSession" = "enable"
   ): void {
     try {
@@ -192,19 +192,21 @@ export class Core {
 
   public async stop(): Promise<ExportedSession> {
     if (!this.isEnabled) {
-      throw new Error("Session not started");
+      throw new Error("SDK is not enabled");
     }
 
     try {
-      // Flush the buffer
+      // Add session end event
       this.eventBuffer.addEvent({
         type: EventType.Custom,
         timestamp: Date.now(),
         data: {
           tag: "$session_end",
-          payload: {},
+          payload: { reason: "manual_stop" },
         },
       });
+
+      // Force flush to ensure data is sent
       await this.eventBuffer.flush(true);
 
       // Aggregate and export data

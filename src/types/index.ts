@@ -81,7 +81,7 @@ export interface CoreConfig {
   userIdentity?: UserIdentity;
 }
 
-export interface SessionCore {
+export interface CoreComponents {
   sessionRecorder: SessionRecorder;
   networkMonitor: NetworkMonitor;
 }
@@ -121,6 +121,15 @@ export interface SnapshotBuffer {
   sessionId: string;
   metadata?: Record<string, any>;
   userIdentity?: UserIdentity;
+}
+
+// Structure for persisted buffer data
+export interface PersistedBufferData {
+  sessionId: string;
+  timestamp: number;
+  events: EventType[];
+  userIdentity?: UserIdentity;
+  size: number;
 }
 
 export interface SessionRecordingUrlTrigger {

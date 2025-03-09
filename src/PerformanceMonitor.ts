@@ -7,7 +7,6 @@ declare global {
   }
 }
 
-
 export class PerformanceMonitor {
   private static readonly MB = 1024 * 1024;
   private static readonly DEFAULT_MEMORY_LIMIT = 50 * PerformanceMonitor.MB;
@@ -22,7 +21,7 @@ export class PerformanceMonitor {
     onLimitExceeded: () => void
   ) {
     if (!this.isMemoryAPIAvailable()) {
-      console.warn("Memory API is not available");
+      console.warn("[SDK] Memory API is not available");
     }
     this.memoryLimit = memoryLimit;
     this.onLimitExceeded = onLimitExceeded;
@@ -63,13 +62,15 @@ export class PerformanceMonitor {
         }
       }
     } catch (error) {
-      console.warn("Memory measurement failed:", error);
+      console.warn("[SDK] Memory measurement failed:", error);
     }
   }
 
   private async getMemoryInfo(): Promise<MemoryEstimate | Memory | null> {
     if (!this.isMemoryAPIAvailable()) return null;
-    if (typeof window.performance.measureUserAgentSpecificMemory === "function") {
+    if (
+      typeof window.performance.measureUserAgentSpecificMemory === "function"
+    ) {
       return window.performance.measureUserAgentSpecificMemory();
     }
     return window.performance.memory;
