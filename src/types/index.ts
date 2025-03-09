@@ -27,7 +27,6 @@ export interface MutationThrottlingConfig {
   refillRate: number;
 }
 
-
 export interface SessionData {
   sessionId: string;
   startTime: number;
@@ -36,7 +35,7 @@ export interface SessionData {
 }
 
 export interface NetworkRequest {
-  type: 7,
+  type: 7;
   id: string;
   timestamp: number;
   duration: number;
@@ -61,8 +60,6 @@ export interface NetworkMonitorConfig {
   maxBodySize?: number;
   excludeUrls?: RegExp[];
 }
-
-
 
 export interface PerformanceConfig {
   memoryLimit?: number; // in bytes
@@ -117,8 +114,8 @@ export interface MemoryEstimate {
 export type EventType = eventWithTime | NetworkRequest;
 
 export interface SnapshotBuffer {
-  size: number
-  data: EventType[]
+  size: number;
+  data: EventType[];
   startTime: number;
   endTime?: number;
   sessionId: string;
@@ -127,8 +124,8 @@ export interface SnapshotBuffer {
 }
 
 export interface SessionRecordingUrlTrigger {
-  url: string
-  matching: 'regex'
+  url: string;
+  matching: "regex";
 }
 
 export interface UserIdentity {
