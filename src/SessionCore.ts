@@ -14,6 +14,7 @@ import {
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { v4 as uuidv4 } from "uuid";
 import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
+import { EventType } from "rrweb";
 
 export class Core {
   private readonly components: SessionCore;
@@ -196,6 +197,14 @@ export class Core {
 
     try {
       // Flush the buffer
+      this.eventBuffer.addEvent({
+        type: EventType.Custom,
+        timestamp: Date.now(),
+        data: {
+          tag: "$session_end",
+          payload: {},
+        },
+      });
       await this.eventBuffer.flush(true);
 
       // Aggregate and export data
