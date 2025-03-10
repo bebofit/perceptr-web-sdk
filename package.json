@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1",
+  "version": "0.0.4",
   "name": "@perceptr/web-sdk",
   "author": {
     "name": "Abdelrahman Soliman",
@@ -7,14 +7,27 @@
   },
   "description": "Perceptr Web SDK for recording and monitoring user sessions",
   "license": "MIT",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/esm/index.d.ts"
+    }
+  },
+  "sideEffects": false,
   "keywords": [
     "perceptr",
     "web-sdk",
     "user-session",
     "monitoring",
     "recording"
+  ],
+  "files": [
+    "dist",
+    "README.md"
   ],
   "repository": {
     "type": "git",
@@ -25,7 +38,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "build": "tsc"
+    "build:esm": "tsc",
+    "build:cjs": "tsc --module commonjs --outDir dist/cjs",
+    "build": "npm run build:esm && npm run build:cjs"
   },
   "dependencies": {
     "@rrweb/rrweb-plugin-console-record": "^2.0.0-alpha.18",
