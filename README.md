@@ -84,7 +84,7 @@ The default export is a singleton instance with the following methods:
 |--------|-------------|------------|
 | `init(config)` | Initialize the SDK |`config: CoreConfig` |
 | `start()` | Start recording the session | None |
-| `stop()` | Stop recording and return session data | Returns `Promise<ExportedSession>` |
+| `stop()` | Stop recording and return session data | Returns `Promise<void>` |
 | `pause()` | Temporarily pause recording | None |
 | `resume()` | Resume a paused recording | None |
 | `identify(distinctId, traits)` | Associate the session with a user | `distinctId: string, traits?: Record<string, any>` |
@@ -94,7 +94,7 @@ The default export is a singleton instance with the following methods:
 
 ```javascript
 
-import  Perceptr, { CoreConfig, ExportedSession, UserIdentity } from  "@perceptr/web-sdk";
+import  Perceptr, { CoreConfig, UserIdentity } from  "@perceptr/web-sdk";
 
 ```
   
@@ -133,7 +133,7 @@ Perceptr.start();
 
 ```
 
-#### `stop(): Promise<ExportedSession>`
+#### `stop(): Promise<void>`
 Stops the recording and returns the session data.
 ```javascript
 
