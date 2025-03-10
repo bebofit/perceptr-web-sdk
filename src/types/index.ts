@@ -47,7 +47,7 @@ export interface NetworkRequest {
   responseHeaders: Record<string, string>;
   requestBody?: any;
   responseBody?: any;
-  error?: string;
+  error?: unknown;
 }
 
 export interface NetworkMonitorConfig {

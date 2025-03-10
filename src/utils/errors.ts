@@ -15,7 +15,7 @@ export enum ErrorCode {
 export interface SDKError {
   code: ErrorCode;
   message: string;
-  originalError?: Error;
+  originalError?: unknown;
   context?: Record<string, any>;
 }
 
@@ -40,7 +40,7 @@ export function wrapWithErrorBoundary<T extends (...args: any[]) => any>(
     } catch (error) {
       emitError({
         code: errorCode,
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
         originalError: error,
         context,
       });

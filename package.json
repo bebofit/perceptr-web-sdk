@@ -1,8 +1,31 @@
 {
+  "version": "0.0.1",
+  "name": "@perceptr/web-sdk",
+  "author": {
+    "name": "Abdelrahman Soliman",
+    "email": "bebofit@aucegypt.edu"
+  },
+  "description": "Perceptr Web SDK for recording and monitoring user sessions",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "keywords": [
+    "perceptr",
+    "web-sdk",
+    "user-session",
+    "monitoring",
+    "recording"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bebofit/perceptr-web-sdk.git"
+  },
+  "homepage": "https://github.com/bebofit/perceptr-web-sdk",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "build": "tsc"
   },
   "dependencies": {
     "@rrweb/rrweb-plugin-console-record": "^2.0.0-alpha.18",

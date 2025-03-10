@@ -35,34 +35,26 @@ export class Core {
     this.eventListeners = [];
     this.userIdentity = config.userIdentity;
 
-    try {
-      this.components = {
-        sessionRecorder: new SessionRecorder(config.session, config.debug),
-        networkMonitor: new NetworkMonitor(config.network, config.debug),
-      };
+    this.components = {
+      sessionRecorder: new SessionRecorder(config.session, config.debug),
+      networkMonitor: new NetworkMonitor(config.network, config.debug),
+    };
 
-      this.performanceMonitor = new PerformanceMonitor(
-        config.performance?.memoryLimit,
-        () => this.handleMemoryLimit()
-      );
+    this.performanceMonitor = new PerformanceMonitor(
+      config.performance?.memoryLimit,
+      () => this.handleMemoryLimit()
+    );
 
-      this.apiService = new ApiService(config);
+    this.apiService = new ApiService(config);
 
-      this.eventBuffer = new EventBuffer(
-        this.sessionId,
-        (buffer) => this.sendBufferToServer(buffer),
-        config.debug
-      );
+    this.eventBuffer = new EventBuffer(
+      this.sessionId,
+      (buffer) => this.sendBufferToServer(buffer),
+      config.debug
+    );
 
-      if (config.debug) {
-        this.setupDebugListeners();
-      }
-    } catch (error) {
-      emitError({
-        code: ErrorCode.INITIALIZATION_FAILED,
-        message: "Failed to initialize SDK",
-        originalError: error,
-      });
+    if (config.debug) {
+      this.setupDebugListeners();
     }
   }
 
@@ -175,7 +167,11 @@ export class Core {
   ): void {
     try {
       const component = this.components[componentName];
-      component[method]();
+      if (method === "startSession" && componentName === "sessionRecorder") {
+        (component as SessionRecorder).startSession();
+      } else if (method === "enable") {
+        (component as NetworkMonitor).enable();
+      }
     } catch (error) {
       emitError({
         code: ErrorCode.API_ERROR,

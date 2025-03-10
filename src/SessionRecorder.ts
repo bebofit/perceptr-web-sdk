@@ -7,7 +7,7 @@ import {
   INCREMENTAL_SNAPSHOT_EVENT_TYPE,
 } from "./common/defaults";
 import { sessionRecordingUrlTriggerMatches } from "./utils/sessionrecording-utils";
-import { MutationRateLimiter } from "./common/services/mutationRateLimiter";
+import { MutationRateLimiter } from "./common/services/MutationRateLimiter";
 
 export class SessionRecorder {
   private events: eventWithTime[] = [];
@@ -54,7 +54,7 @@ export class SessionRecorder {
     this._mutationConfig = {
       enabled: true,
       bucketSize: 100,
-      refillRate: 10
+      refillRate: 10,
     };
 
     // Initialize the mutation rate limiter
@@ -65,7 +65,7 @@ export class SessionRecorder {
         if (this._debug) {
           console.debug(`[SDK] Throttling mutations for node ${id}`, node);
         }
-      }
+      },
     });
   }
 
@@ -77,7 +77,8 @@ export class SessionRecorder {
       emit: (event) => {
         // Apply mutation rate limiting before processing the event
         if (this._mutationConfig.enabled) {
-          const throttledEvent = this.mutationRateLimiter.throttleMutations(event);
+          const throttledEvent =
+            this.mutationRateLimiter.throttleMutations(event);
           // If the event was completely throttled, don't process it
           if (throttledEvent) return;
         }
@@ -268,11 +269,13 @@ export class SessionRecorder {
   public addCustomEvent(name: string, payload: any): void {
     if (!this._isRecording) {
       if (this._debug) {
-        console.warn("[SDK] Cannot add custom event: No active recording session");
+        console.warn(
+          "[SDK] Cannot add custom event: No active recording session"
+        );
       }
       return;
     }
-    
+
     try {
       record.addCustomEvent(name, payload);
     } catch (error) {

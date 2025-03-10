@@ -12,8 +12,28 @@ export class NetworkMonitor {
   private readonly config: Required<NetworkMonitorConfig> = {
     maxRequests: 1000,
     sanitizeHeaders: ["authorization", "cookie", "x-auth-token"],
-    sanitizeParams: ["password", "token", "secret", "key", "apikey", "api_key", "access_token"],
-    sanitizeBodyFields: ["password", "token", "secret", "key", "apikey", "api_key", "access_token", "credit_card", "creditCard", "cvv", "ssn"],
+    sanitizeParams: [
+      "password",
+      "token",
+      "secret",
+      "key",
+      "apikey",
+      "api_key",
+      "access_token",
+    ],
+    sanitizeBodyFields: [
+      "password",
+      "token",
+      "secret",
+      "key",
+      "apikey",
+      "api_key",
+      "access_token",
+      "credit_card",
+      "creditCard",
+      "cvv",
+      "ssn",
+    ],
     captureRequestBody: true,
     captureResponseBody: true,
     maxBodySize: 100 * 1024, // 100KB default
@@ -30,7 +50,7 @@ export class NetworkMonitor {
 
   public enable(): void {
     if (this.isEnabled) {
-      if(this.debug) {
+      if (this.debug) {
         console.warn("[SDK] NetworkMonitor already enabled");
       }
       return;
@@ -42,7 +62,7 @@ export class NetworkMonitor {
 
   public disable(): void {
     if (!this.isEnabled) {
-      if(this.debug) {
+      if (this.debug) {
         console.warn("[SDK] NetworkMonitor already disabled");
       }
       return;
@@ -62,7 +82,10 @@ export class NetworkMonitor {
   }
 
   private shouldCaptureUrl(url: string): boolean {
-    return !this.config.excludeUrls.some((pattern) => pattern.test(url)) && !url.includes('/per/');
+    return (
+      !this.config.excludeUrls.some((pattern) => pattern.test(url)) &&
+      !url.includes("/per/")
+    );
   }
 
   private sanitizeUrl(url: string): string {
@@ -89,8 +112,8 @@ export class NetworkMonitor {
   }
 
   private shouldSanitizeParam(param: string): boolean {
-    return this.config.sanitizeParams.some(
-      (pattern) => param.toLowerCase().includes(pattern.toLowerCase())
+    return this.config.sanitizeParams.some((pattern) =>
+      param.toLowerCase().includes(pattern.toLowerCase())
     );
   }
 
@@ -108,9 +131,9 @@ export class NetworkMonitor {
 
   private sanitizeBody(body: any): any {
     if (!body) return body;
-    
+
     // Handle string bodies (try to parse as JSON)
-    if (typeof body === 'string') {
+    if (typeof body === "string") {
       try {
         const parsed = JSON.parse(body);
         return JSON.stringify(this.sanitizeObjectBody(parsed));
@@ -119,7 +142,7 @@ export class NetworkMonitor {
         return this.truncateBody(body);
       }
     }
-    
+
     // Handle FormData
     if (body instanceof FormData) {
       const sanitized = new FormData();
@@ -132,7 +155,7 @@ export class NetworkMonitor {
       }
       return sanitized;
     }
-    
+
     // Handle URLSearchParams
     if (body instanceof URLSearchParams) {
       const sanitized = new URLSearchParams();
@@ -145,44 +168,44 @@ export class NetworkMonitor {
       }
       return sanitized;
     }
-    
+
     // Handle plain objects
-    if (typeof body === 'object' && body !== null) {
+    if (typeof body === "object" && body !== null) {
       return this.sanitizeObjectBody(body);
     }
-    
+
     return this.truncateBody(body);
   }
-  
+
   private sanitizeObjectBody(obj: any): any {
     if (Array.isArray(obj)) {
-      return obj.map(item => this.sanitizeObjectBody(item));
+      return obj.map((item) => this.sanitizeObjectBody(item));
     }
-    
-    if (typeof obj === 'object' && obj !== null) {
+
+    if (typeof obj === "object" && obj !== null) {
       const result = { ...obj };
       for (const key in result) {
         if (this.shouldSanitizeBodyField(key)) {
           result[key] = "[REDACTED]";
-        } else if (typeof result[key] === 'object' && result[key] !== null) {
+        } else if (typeof result[key] === "object" && result[key] !== null) {
           result[key] = this.sanitizeObjectBody(result[key]);
         }
       }
       return result;
     }
-    
+
     return obj;
   }
-  
+
   private shouldSanitizeBodyField(field: string): boolean {
-    return this.config.sanitizeBodyFields.some(
-      (pattern) => field.toLowerCase().includes(pattern.toLowerCase())
+    return this.config.sanitizeBodyFields.some((pattern) =>
+      field.toLowerCase().includes(pattern.toLowerCase())
     );
   }
-  
+
   private truncateBody(body: any): any {
-    if (typeof body === 'string' && body.length > this.config.maxBodySize) {
-      return body.substring(0, this.config.maxBodySize) + '... [truncated]';
+    if (typeof body === "string" && body.length > this.config.maxBodySize) {
+      return body.substring(0, this.config.maxBodySize) + "... [truncated]";
     }
     return body;
   }
@@ -268,7 +291,7 @@ export class NetworkMonitor {
             : {},
           responseHeaders: {},
           requestBody: requestBody,
-          error: error.message,
+          error: error,
         });
         throw error;
       }
@@ -289,7 +312,7 @@ export class NetworkMonitor {
         url,
         startTime: Date.now(),
       };
-      return self.originalXHROpen.apply(this, [method, url, ...args]);
+      return self.originalXHROpen.apply(this, [method, url, ...args] as any);
     };
 
     XMLHttpRequest.prototype.send = function (
@@ -305,7 +328,7 @@ export class NetworkMonitor {
 
       const requestData = this.__requestData;
       let sanitizedBody: any = undefined;
-      
+
       // Capture and sanitize request body if enabled
       if (self.config.captureRequestBody && body) {
         sanitizedBody = self.sanitizeBody(body);
@@ -371,7 +394,7 @@ export class NetworkMonitor {
       originalAddRequest.call(this, request);
       callback(request);
     };
-    
+
     // Return a function to unsubscribe
     return () => {
       this.addRequest = originalAddRequest;
