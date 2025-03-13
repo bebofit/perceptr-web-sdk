@@ -37,7 +37,11 @@ export class Core {
 
     this.components = {
       sessionRecorder: new SessionRecorder(config.session, config.debug),
-      networkMonitor: new NetworkMonitor(config.network, config.debug),
+      networkMonitor: new NetworkMonitor(
+        config.network,
+        this.startTime,
+        config.debug
+      ),
     };
 
     this.performanceMonitor = new PerformanceMonitor(
@@ -192,16 +196,6 @@ export class Core {
     }
 
     try {
-      // Add session end event
-      this.eventBuffer.addEvent({
-        type: EventType.Custom,
-        timestamp: Date.now(),
-        data: {
-          tag: "$session_end",
-          payload: { reason: "manual_stop" },
-        },
-      });
-
       // Force flush to ensure data is sent
       await this.eventBuffer.flush(true);
 

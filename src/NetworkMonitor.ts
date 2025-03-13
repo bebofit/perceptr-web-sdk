@@ -7,6 +7,7 @@ export class NetworkMonitor {
   private originalXHROpen: typeof XMLHttpRequest.prototype.open;
   private originalXHRSend: typeof XMLHttpRequest.prototype.send;
   private isEnabled = false;
+  private startTime: number;
   private debug = false;
 
   private readonly config: Required<NetworkMonitorConfig> = {
@@ -40,8 +41,13 @@ export class NetworkMonitor {
     excludeUrls: [/\/logs$/, /\/health$/],
   };
 
-  constructor(config: NetworkMonitorConfig = {}, debug: boolean = false) {
+  constructor(
+    config: NetworkMonitorConfig = {},
+    startTime: number,
+    debug: boolean = false
+  ) {
     this.debug = debug;
+    this.startTime = startTime;
     this.config = { ...this.config, ...config };
     this.originalFetch = window.fetch;
     this.originalXHROpen = XMLHttpRequest.prototype.open;
@@ -217,13 +223,23 @@ export class NetworkMonitor {
     }
   }
 
+  private getVideoTimestamp(timestamp: number): string {
+    const seconds = Math.floor((timestamp - this.startTime) / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+  }
+
   private patchFetch(): void {
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       if (!this.shouldCaptureUrl(input.toString())) {
         return this.originalFetch(input, init);
       }
 
-      const startTime = Date.now();
+      const startRequestTime = Date.now();
       const requestId = uuidv4();
       let requestBody: any = undefined;
 
@@ -234,7 +250,7 @@ export class NetworkMonitor {
 
       try {
         const response = await this.originalFetch(input, init);
-        const duration = Date.now() - startTime;
+        const duration = Date.now() - startRequestTime;
 
         const requestHeaders = init?.headers
           ? this.sanitizeHeaders(
@@ -249,7 +265,8 @@ export class NetworkMonitor {
         const request: NetworkRequest = {
           type: 7,
           id: requestId,
-          timestamp: startTime,
+          timestamp: startRequestTime,
+          video_timestamp: this.getVideoTimestamp(startRequestTime),
           duration,
           method: init?.method || "GET",
           url: this.sanitizeUrl(input.toString()),
@@ -276,11 +293,12 @@ export class NetworkMonitor {
         this.addRequest(request);
         return response;
       } catch (error) {
-        const duration = Date.now() - startTime;
+        const duration = Date.now() - startRequestTime;
         this.addRequest({
           type: 7,
           id: requestId,
-          timestamp: startTime,
+          timestamp: startRequestTime,
+          video_timestamp: this.getVideoTimestamp(startRequestTime),
           duration,
           method: init?.method || "GET",
           url: this.sanitizeUrl(input.toString()),
@@ -290,8 +308,8 @@ export class NetworkMonitor {
               )
             : {},
           responseHeaders: {},
-          requestBody: requestBody,
-          error: error,
+          requestBody,
+          error,
         });
         throw error;
       }
@@ -340,6 +358,7 @@ export class NetworkMonitor {
           type: 7,
           id: requestData.id,
           timestamp: requestData.startTime,
+          video_timestamp: self.getVideoTimestamp(requestData.startTime),
           duration,
           method: requestData.method,
           url: self.sanitizeUrl(requestData.url),
@@ -374,6 +393,7 @@ export class NetworkMonitor {
           type: 7,
           id: requestData.id,
           timestamp: requestData.startTime,
+          video_timestamp: self.getVideoTimestamp(requestData.startTime),
           duration,
           method: requestData.method,
           url: self.sanitizeUrl(requestData.url),

@@ -38,6 +38,7 @@ export interface NetworkRequest {
   type: 7;
   id: string;
   timestamp: number;
+  video_timestamp: string;
   duration: number;
   method: string;
   url: string;
@@ -116,6 +117,7 @@ export type EventType = eventWithTime | NetworkRequest;
 export interface SnapshotBuffer {
   size: number;
   data: EventType[];
+  isSessionEnded: boolean;
   startTime: number;
   endTime?: number;
   sessionId: string;

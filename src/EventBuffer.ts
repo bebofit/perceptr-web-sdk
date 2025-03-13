@@ -109,21 +109,9 @@ export class EventBuffer {
       // Process each persisted buffer
       for (const data of persistedData) {
         try {
-          // Create a session end event for each persisted session
-          const sessionEndEvent = {
-            type: 5, // Custom event type
-            timestamp: data.timestamp,
-            data: {
-              tag: "$session_end",
-              payload: { reason: "browser_closed" },
-            },
-          };
-
-          // Add the session end event to the persisted events
-          data.events.push(sessionEndEvent as EventType);
-
           // Create a snapshot from the persisted data
           const snapshot: SnapshotBuffer = {
+            isSessionEnded: true,
             sessionId: data.sessionId,
             startTime: data.timestamp - 60000, // Approximate start time (1 minute before)
             endTime: data.timestamp,
@@ -286,13 +274,13 @@ export class EventBuffer {
     this.userIdentity = identity;
   }
 
-  public async flush(force: boolean = false): Promise<void> {
+  public async flush(isSessionEnded: boolean = false): Promise<void> {
     if (this.buffer.length === 0 || this.isFlushInProgress) return;
 
     const now = Date.now();
 
     // Check if we're in a backoff period
-    if (now < this.backoffUntil && !force) {
+    if (now < this.backoffUntil && !isSessionEnded) {
       if (this.debug) {
         console.debug(
           `[SDK] In backoff period, skipping flush. Will retry in ${Math.ceil(
@@ -320,6 +308,7 @@ export class EventBuffer {
 
     // Create the snapshot buffer
     const snapshot: SnapshotBuffer = {
+      isSessionEnded,
       sessionId: this.sessionId,
       startTime: this.startTime,
       endTime: now,
