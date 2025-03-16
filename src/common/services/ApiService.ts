@@ -9,12 +9,18 @@ export class ApiService {
   private readonly debug: boolean;
 
   constructor(config: CoreConfig) {
-    this.apiUrl = `${this.host}/v1/per/${config.projectId}/r`;
+    this.apiUrl = `${this.host}/v1/per/${config.projectId}`;
     this.debug = config.debug ?? false;
   }
 
+  public async checkValidProjectId(): Promise<boolean> {
+    const url = `${this.apiUrl}/check`;
+    const response = await axios.get(url);
+    return response.data.success;
+  }
+
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
-    const url = `${this.apiUrl}/events`;
+    const url = `${this.apiUrl}/r/events`;
     await axios.post(url, {
       headers: {
         "Content-Type": "application/json",

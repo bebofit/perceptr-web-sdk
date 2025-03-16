@@ -14,50 +14,59 @@ import {
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { v4 as uuidv4 } from "uuid";
 import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
-import { EventType } from "rrweb";
 
 export class Core {
-  private readonly components: CoreComponents;
-  private readonly config: CoreConfig;
-  private readonly sessionId: string;
-  private readonly startTime: number;
-  private readonly performanceMonitor: PerformanceMonitor;
-  private readonly eventBuffer: EventBuffer;
-  private readonly apiService: ApiService;
+  private components!: CoreComponents;
+  private config: CoreConfig;
+  private sessionId!: string;
+  private startTime!: number;
+  private performanceMonitor!: PerformanceMonitor;
+  private eventBuffer!: EventBuffer;
+  private apiService!: ApiService;
   private isEnabled = false;
   private eventListeners: (() => void)[] = [];
   private userIdentity?: UserIdentity;
 
   constructor(config: CoreConfig) {
     this.config = config;
+    this.init();
+  }
+
+  private async init() {
+    this.apiService = new ApiService(this.config);
+
+    const valid = await this.apiService.checkValidProjectId();
+    if (!valid) {
+      throw new Error(`Invalid project ID: ${this.config.projectId}`);
+    }
     this.sessionId = uuidv4();
     this.startTime = Date.now();
     this.eventListeners = [];
-    this.userIdentity = config.userIdentity;
-
+    this.userIdentity = this.config.userIdentity;
     this.components = {
-      sessionRecorder: new SessionRecorder(config.session, config.debug),
+      sessionRecorder: new SessionRecorder(
+        this.config.session,
+        this.config.debug
+      ),
       networkMonitor: new NetworkMonitor(
-        config.network,
+        this.config.network,
         this.startTime,
-        config.debug
+        this.config.debug
       ),
     };
 
     this.performanceMonitor = new PerformanceMonitor(
-      config.performance?.memoryLimit,
+      this.config.performance?.memoryLimit,
       () => this.handleMemoryLimit()
     );
-
-    this.apiService = new ApiService(config);
 
     this.eventBuffer = new EventBuffer(
       this.sessionId,
       (buffer) => this.sendBufferToServer(buffer),
-      config.debug
+      this.config.debug
     );
 
-    if (config.debug) {
+    if (this.config.debug) {
       this.setupDebugListeners();
     }
   }
