@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { CoreConfig, SnapshotBuffer } from "../../types";
 
-const HOST = process?.env?.PERCEPTR_HOST || "http://localhost:8000";
+const HOST = "http://localhost:8000";
 
 export class ApiService {
   private readonly host: string = HOST;
