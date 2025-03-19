@@ -83,11 +83,11 @@ The default export is a singleton instance with the following methods:
 | Method | Description | Parameters |
 |--------|-------------|------------|
 | `init(config)` | Initialize the SDK |`config: CoreConfig` |
-| `start()` | Start recording the session | None |
+| `start()` | Start recording the session | Returns `Promise<void>` |
 | `stop()` | Stop recording and return session data | Returns `Promise<void>` |
 | `pause()` | Temporarily pause recording | None |
 | `resume()` | Resume a paused recording | None |
-| `identify(distinctId, traits)` | Associate the session with a user | `distinctId: string, traits?: Record<string, any>` |
+| `identify(distinctId, traits)` | Associate the session with a user | `distinctId: string, traits?: Record<string, any>` Returns `Promise<void>` |
 
 ### Importing
 
@@ -129,7 +129,7 @@ Starts recording the user session.
 
 ```javascript
 
-Perceptr.start();
+await Perceptr.start();
 
 ```
 
@@ -137,7 +137,7 @@ Perceptr.start();
 Stops the recording and returns the session data.
 ```javascript
 
-Perceptr.stop();
+await Perceptr.stop();
 ```
 
 #### `pause(): void`
@@ -173,7 +173,7 @@ Associates the current session with a user identity.
 
 ```javascript
 
-Perceptr.identify('user-123', {
+await Perceptr.identify('user-123', {
 
 email: 'user@example.com',
 
@@ -271,7 +271,7 @@ import Perceptr from 'https://cdn.jsdelivr.net/npm/@perceptr/web-sdk/dist/esm/in
 
 // Initialize when the page loads
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async() => {
 
 Perceptr.init({
 
@@ -279,7 +279,7 @@ projectId: 'your-project-id'
 
 });
 
-Perceptr.start();
+await Perceptr.start();
 
 // Optional: Identify user after login
 
@@ -289,7 +289,7 @@ e.preventDefault();
 
 const userId = document.getElementById('user-id').value;
 
-Perceptr.identify(userId, {
+await Perceptr.identify(userId, {
 
 email: document.getElementById('email').value
 
@@ -338,7 +338,7 @@ import  LoginForm  from  './components/LoginForm';
 function  App() {
 
 useEffect(() => {
-
+    const init = async () => {
 // Initialize once when the app loads
 
 Perceptr.init({
@@ -347,21 +347,22 @@ projectId: 'your-project-id'
 
 });
 
-Perceptr.start();
-
+await Perceptr.start();
+    }
+    init();
 // Clean up on unmount
 
 return () => {
 
-Perceptr.stop();
+ Perceptr.stop();
 
 };
 
 }, []);
 
-const  handleLogin  = (userId, email) => {
+const  handleLogin  = async (userId, email) => {
 
-Perceptr.identify(userId, {
+await Perceptr.identify(userId, {
 
 email,
 
@@ -533,7 +534,7 @@ template: `
 
 export  class  AppComponent  implements  OnInit, OnDestroy {
 
-ngOnInit() {
+async ngOnInit() {
 
 // Initialize the SDK
 
@@ -543,7 +544,7 @@ projectId: 'your-project-id'
 
 });
 
-Perceptr.start();
+await Perceptr.start();
 
 }
 
@@ -555,9 +556,9 @@ Perceptr.stop();
 
 }
 
-onLogin(userData: {userId: string, email: string}) {
+async onLogin(userData: {userId: string, email: string}) {
 
-Perceptr.identify(userData.userId, {
+awaitPerceptr.identify(userData.userId, {
 
 email: userData.email,
 
@@ -689,9 +690,9 @@ Perceptr.stop();
 
 methods: {
 
-onLogin(userData) {
+async onLogin(userData) {
 
-Perceptr.identify(userData.userId, {
+await Perceptr.identify(userData.userId, {
 
 email: userData.email,
 

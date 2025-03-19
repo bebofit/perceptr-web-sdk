@@ -21,11 +21,10 @@ export class ApiService {
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
     const url = `${this.apiUrl}/r/events`;
-    await axios.post(url, {
+    await axios.post(url, buffer, {
       headers: {
         "Content-Type": "application/json",
       },
-      body: buffer,
     });
     if (this.debug) {
       console.debug(`[SDK] Successfully sent events to server`);

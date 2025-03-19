@@ -26,48 +26,61 @@ export class Core {
   private isEnabled = false;
   private eventListeners: (() => void)[] = [];
   private userIdentity?: UserIdentity;
+  private initPromise: Promise<void>;
+  private isInitialized = false;
 
   constructor(config: CoreConfig) {
     this.config = config;
-    this.init();
+    this.initPromise = this.init();
   }
 
   private async init() {
-    this.apiService = new ApiService(this.config);
+    try {
+      this.apiService = new ApiService(this.config);
 
-    const valid = await this.apiService.checkValidProjectId();
-    if (!valid) {
-      throw new Error(`Invalid project ID: ${this.config.projectId}`);
-    }
-    this.sessionId = uuidv4();
-    this.startTime = Date.now();
-    this.eventListeners = [];
-    this.userIdentity = this.config.userIdentity;
-    this.components = {
-      sessionRecorder: new SessionRecorder(
-        this.config.session,
+      const valid = await this.apiService.checkValidProjectId();
+      if (!valid) {
+        throw new Error(`Invalid project ID: ${this.config.projectId}`);
+      }
+      this.sessionId = uuidv4();
+      this.startTime = Date.now();
+      this.eventListeners = [];
+      this.userIdentity = this.config.userIdentity;
+      this.components = {
+        sessionRecorder: new SessionRecorder(
+          this.config.session,
+          this.config.debug
+        ),
+        networkMonitor: new NetworkMonitor(
+          this.config.network,
+          this.startTime,
+          this.config.debug
+        ),
+      };
+
+      this.performanceMonitor = new PerformanceMonitor(
+        this.config.performance?.memoryLimit,
+        () => this.handleMemoryLimit()
+      );
+
+      this.eventBuffer = new EventBuffer(
+        this.sessionId,
+        (buffer) => this.sendBufferToServer(buffer),
         this.config.debug
-      ),
-      networkMonitor: new NetworkMonitor(
-        this.config.network,
-        this.startTime,
-        this.config.debug
-      ),
-    };
+      );
 
-    this.performanceMonitor = new PerformanceMonitor(
-      this.config.performance?.memoryLimit,
-      () => this.handleMemoryLimit()
-    );
+      if (this.config.debug) {
+        this.setupDebugListeners();
+      }
 
-    this.eventBuffer = new EventBuffer(
-      this.sessionId,
-      (buffer) => this.sendBufferToServer(buffer),
-      this.config.debug
-    );
-
-    if (this.config.debug) {
-      this.setupDebugListeners();
+      this.isInitialized = true;
+    } catch (error) {
+      emitError({
+        code: ErrorCode.API_ERROR,
+        message: "Failed to initialize SDK",
+        originalError: error,
+      });
+      throw error;
     }
   }
 
@@ -76,24 +89,39 @@ export class Core {
    * @param distinctId - Unique identifier for the user
    * @param traits - Additional user properties
    */
-  public identify(distinctId: string, traits: Record<string, any> = {}): void {
-    this.userIdentity = {
-      distinctId,
-      ...traits,
-    };
-
-    if (this.config.debug) {
-      console.debug(`[SDK] User identified: ${distinctId}`, traits);
-    }
-
-    // If we have an active buffer, update it with the user identity
-    this.eventBuffer.setUserIdentity(this.userIdentity);
-
-    // Send an identify event to the session recorder
-    if (this.isEnabled && this.components.sessionRecorder) {
-      this.components.sessionRecorder.addCustomEvent("$identify", {
+  public async identify(
+    distinctId: string,
+    traits: Record<string, any> = {}
+  ): Promise<void> {
+    try {
+      await this.initPromise;
+      if (!this.isInitialized) {
+        throw new Error("[SDK] Not properly initialized");
+      }
+      this.userIdentity = {
         distinctId,
         ...traits,
+      };
+
+      if (this.config.debug) {
+        console.debug(`[SDK] User identified: ${distinctId}`, traits);
+      }
+
+      // If we have an active buffer, update it with the user identity
+      this.eventBuffer.setUserIdentity(this.userIdentity);
+
+      // Send an identify event to the session recorder
+      if (this.isEnabled && this.components.sessionRecorder) {
+        this.components.sessionRecorder.addCustomEvent("$identify", {
+          distinctId,
+          ...traits,
+        });
+      }
+    } catch (error) {
+      emitError({
+        code: ErrorCode.API_ERROR,
+        message: "Failed to identify user",
+        originalError: error,
       });
     }
   }
@@ -126,10 +154,17 @@ export class Core {
     }
   }
 
-  public start(): void {
+  public async start(): Promise<void> {
     if (this.isEnabled) return;
 
     try {
+      // Wait for initialization to complete
+      await this.initPromise;
+
+      if (!this.isInitialized) {
+        throw new Error("[SDK] Not properly initialized");
+      }
+
       // Set up event listeners for buffer
       this.setupEventListeners();
 

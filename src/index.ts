@@ -27,9 +27,9 @@ class PerceptrSDK {
     this.initialized = true;
   }
 
-  public start(): void {
+  public start(): Promise<void> {
     this.ensureInitialized();
-    this.core.start();
+    return this.core.start();
   }
 
   public stop(): Promise<ExportedSession> {
@@ -47,9 +47,12 @@ class PerceptrSDK {
     this.core.resume();
   }
 
-  public identify(distinctId: string, traits: Record<string, any> = {}): void {
+  public identify(
+    distinctId: string,
+    traits: Record<string, any> = {}
+  ): Promise<void> {
     this.ensureInitialized();
-    this.core.identify(distinctId, traits);
+    return this.core.identify(distinctId, traits);
   }
 
   private ensureInitialized(): void {
