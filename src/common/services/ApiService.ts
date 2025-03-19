@@ -9,7 +9,7 @@ export class ApiService {
   private readonly debug: boolean;
 
   constructor(config: CoreConfig) {
-    this.apiUrl = `${this.host}/v1/per/${config.projectId}`;
+    this.apiUrl = `${this.host}/api/v1/per/${config.projectId}`;
     this.debug = config.debug ?? false;
   }
 
