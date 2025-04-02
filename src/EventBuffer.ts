@@ -144,9 +144,7 @@ export class EventBuffer {
       } else {
         localStorage.removeItem(this.config.persistenceKey);
       }
-      logger.debug(
-        `[EventBuffer] Processed ${persistedData.length} persisted events`
-      );
+      logger.debug(`Processed ${persistedData.length} persisted events`);
     } catch (error) {
       logger.error("Error processing persisted buffer data:", error);
       // Clear potentially corrupted data
@@ -243,7 +241,6 @@ export class EventBuffer {
       logger.debug("Scheduling buffer flush");
       scheduleIdleTask(() => this.flush());
     }
-    logger.debug(`Added event: ${event.type}`);
   }
 
   public addEvents(events: EventType[]): void {
@@ -324,9 +321,7 @@ export class EventBuffer {
 
       // Reset the flush timer
       this.resetFlushTimer();
-      logger.debug(
-        `[EventBuffer] Flushing ${bufferData.length} events to server`
-      );
+      logger.debug(`Flushing ${bufferData.length} events to server`);
     } catch (error) {
       // Increment failure count and implement exponential backoff
       this.flushFailures++;
