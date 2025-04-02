@@ -128,7 +128,8 @@ export interface SnapshotBuffer {
 // Structure for persisted buffer data
 export interface PersistedBufferData {
   sessionId: string;
-  timestamp: number;
+  startTime: number;
+  endTime: number;
   events: EventType[];
   userIdentity?: UserIdentity;
   size: number;

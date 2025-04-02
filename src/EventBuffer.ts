@@ -113,8 +113,8 @@ export class EventBuffer {
           const snapshot: SnapshotBuffer = {
             isSessionEnded: true,
             sessionId: data.sessionId,
-            startTime: this.startTime,
-            endTime: data.timestamp,
+            startTime: data.startTime,
+            endTime: data.endTime,
             size: data.size,
             data: data.events,
             metadata: {
@@ -197,7 +197,8 @@ export class EventBuffer {
         // Add current buffer to persisted data
         persistedData.push({
           sessionId: this.sessionId,
-          timestamp: Date.now(),
+          startTime: this.startTime,
+          endTime: Date.now(),
           events: [...this.buffer],
           userIdentity: this.userIdentity,
           size: this.bufferSize,
