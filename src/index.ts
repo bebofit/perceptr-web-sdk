@@ -1,5 +1,6 @@
 import { Core } from "./SessionCore";
 import type { CoreConfig, ExportedSession, UserIdentity } from "./types";
+import { logger } from "./utils/logger";
 
 class PerceptrSDK {
   private static instance: PerceptrSDK;
@@ -19,12 +20,13 @@ class PerceptrSDK {
 
   public init(config: CoreConfig): void {
     if (this.initialized) {
-      console.warn("[SDK] SDK already initialized");
+      logger.forceLog("warn", "SDK already initialized");
       return;
     }
 
     this.core = new Core(config);
     this.initialized = true;
+    logger.configure({ debug: !!config.debug });
   }
 
   public start(): Promise<void> {

@@ -14,6 +14,7 @@ import {
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { v4 as uuidv4 } from "uuid";
 import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
+import { logger } from "./utils/logger";
 
 export class Core {
   private components!: CoreComponents;
@@ -47,15 +48,8 @@ export class Core {
       this.eventListeners = [];
       this.userIdentity = this.config.userIdentity;
       this.components = {
-        sessionRecorder: new SessionRecorder(
-          this.config.session,
-          this.config.debug
-        ),
-        networkMonitor: new NetworkMonitor(
-          this.config.network,
-          this.startTime,
-          this.config.debug
-        ),
+        sessionRecorder: new SessionRecorder(this.config.session),
+        networkMonitor: new NetworkMonitor(this.config.network, this.startTime),
       };
 
       this.performanceMonitor = new PerformanceMonitor(
@@ -63,10 +57,8 @@ export class Core {
         () => this.handleMemoryLimit()
       );
 
-      this.eventBuffer = new EventBuffer(
-        this.sessionId,
-        (buffer) => this.sendBufferToServer(buffer),
-        this.config.debug
+      this.eventBuffer = new EventBuffer(this.sessionId, (buffer) =>
+        this.sendBufferToServer(buffer)
       );
 
       if (this.config.debug) {
@@ -74,6 +66,7 @@ export class Core {
       }
 
       this.isInitialized = true;
+      logger.debug("SDK initialized successfully");
     } catch (error) {
       emitError({
         code: ErrorCode.API_ERROR,
@@ -103,9 +96,7 @@ export class Core {
         ...traits,
       };
 
-      if (this.config.debug) {
-        console.debug(`[SDK] User identified: ${distinctId}`, traits);
-      }
+      logger.debug(`User identified: ${distinctId}`, traits);
 
       // If we have an active buffer, update it with the user identity
       this.eventBuffer.setUserIdentity(this.userIdentity);
@@ -146,12 +137,10 @@ export class Core {
   private setupDebugListeners(): void {
     window.addEventListener("sdk-error", (event: SDKErrorEvent) => {
       const { code, message, context } = event.detail;
-      console.error(`[SDK] error: ${code}: ${message}`, context);
+      logger.error(`error: ${code}: ${message}`, context);
     });
 
-    if (this.config.debug) {
-      console.debug("[SDK] Initialized with config:", this.config);
-    }
+    logger.debug("Initialized with config:", this.config);
   }
 
   public async start(): Promise<void> {
@@ -181,9 +170,7 @@ export class Core {
 
       this.isEnabled = true;
 
-      if (this.config.debug) {
-        console.debug("[SDK] Recording started");
-      }
+      logger.debug("Recording started");
     } catch (error) {
       emitError({
         code: ErrorCode.RECORDING_FAILED,
@@ -228,9 +215,7 @@ export class Core {
         context: { component: componentName },
       });
 
-      if (this.config.debug) {
-        console.warn(`[SDK] Failed to ${method} ${componentName}:`, error);
-      }
+      logger.warn(`Failed to ${method} ${componentName}:`, error);
     }
   }
 
@@ -268,9 +253,7 @@ export class Core {
 
             // Export the session data
             resolve(exporter.exportSession());
-            if (this.config.debug) {
-              console.debug("[SDK] Recording stopped and data exported");
-            }
+            logger.debug("Recording stopped and data exported");
           } catch (error) {
             emitError({
               code: ErrorCode.EXPORT_FAILED,

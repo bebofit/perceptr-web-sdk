@@ -8,6 +8,7 @@ import {
 } from "./common/defaults";
 import { sessionRecordingUrlTriggerMatches } from "./utils/sessionrecording-utils";
 import { MutationRateLimiter } from "./common/services/MutationRateLimiter";
+import { logger } from "./utils/logger";
 
 export class SessionRecorder {
   private events: eventWithTime[] = [];
@@ -16,14 +17,12 @@ export class SessionRecorder {
   private stopFn?: () => void;
   private _idleTimeout?: any;
   private readonly config: Required<SessionConfig>;
-  private readonly _debug: boolean;
   private readonly _mutationConfig: MutationThrottlingConfig;
   private _lastHref?: string;
   private _isUrlBlocked = false;
   private mutationRateLimiter: MutationRateLimiter;
 
-  constructor(config: SessionConfig = {}, debug: boolean = false) {
-    this._debug = debug;
+  constructor(config: SessionConfig = {}) {
     this.config = {
       console: {
         lengthThreshold: config.console?.lengthThreshold ?? 1000,
@@ -62,9 +61,7 @@ export class SessionRecorder {
       bucketSize: this._mutationConfig.bucketSize,
       refillRate: this._mutationConfig.refillRate,
       onBlockedNode: (id, node) => {
-        if (this._debug) {
-          console.debug(`[SDK] Throttling mutations for node ${id}`, node);
-        }
+        logger.debug(`Throttling mutations for node ${id}`, node);
       },
     });
   }
@@ -111,9 +108,7 @@ export class SessionRecorder {
 
   public stopSession(): void {
     if (!this._isRecording) {
-      if (this._debug) {
-        console.warn("[SDK] No active recording session");
-      }
+      logger.warn("No active recording session");
       return;
     }
     if (this.stopFn) {
@@ -133,9 +128,7 @@ export class SessionRecorder {
     }
 
     this._isPaused = true;
-    if (this._debug) {
-      console.debug("[SDK] Recording paused");
-    }
+    logger.debug("Recording paused");
   }
 
   public resume(): void {
@@ -144,9 +137,7 @@ export class SessionRecorder {
     }
 
     this._isPaused = false;
-    if (this._debug) {
-      console.debug("[SDK] Recording resumed");
-    }
+    logger.debug("Recording resumed");
   }
 
   private _canAddEvent(event: eventWithTime): boolean {
@@ -268,20 +259,14 @@ export class SessionRecorder {
    */
   public addCustomEvent(name: string, payload: any): void {
     if (!this._isRecording) {
-      if (this._debug) {
-        console.warn(
-          "[SDK] Cannot add custom event: No active recording session"
-        );
-      }
+      logger.warn("Cannot add custom event: No active recording session");
       return;
     }
 
     try {
       record.addCustomEvent(name, payload);
     } catch (error) {
-      if (this._debug) {
-        console.error(`[SDK] Failed to add custom event: ${name}`, error);
-      }
+      logger.error(`Failed to add custom event: ${name}`, error);
     }
   }
 }

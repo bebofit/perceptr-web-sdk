@@ -1,33 +1,40 @@
 import axios from "axios";
 import type { CoreConfig, SnapshotBuffer } from "../../types";
+import { logger } from "../../utils/logger";
 
 const HOST = "http://localhost:8000";
 
 export class ApiService {
   private readonly host: string = HOST;
   private readonly apiUrl: string;
-  private readonly debug: boolean;
 
   constructor(config: CoreConfig) {
     this.apiUrl = `${this.host}/api/v1/per/${config.projectId}`;
-    this.debug = config.debug ?? false;
   }
 
   public async checkValidProjectId(): Promise<boolean> {
-    const url = `${this.apiUrl}/check`;
-    const response = await axios.get(url);
-    return response.data.success;
+    try {
+      const url = `${this.apiUrl}/check`;
+      const response = await axios.get(url);
+      return response.data.success;
+    } catch (error) {
+      logger.error(`Error checking project ID:`, error);
+      return false;
+    }
   }
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
-    const url = `${this.apiUrl}/r/events`;
-    await axios.post(url, buffer, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    if (this.debug) {
-      console.debug(`[SDK] Successfully sent events to server`);
+    try {
+      const url = `${this.apiUrl}/r/events`;
+      await axios.post(url, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: buffer,
+      });
+      logger.debug(`Successfully sent events to server`);
+    } catch (error) {
+      logger.error(`Error sending events:`, error);
     }
   }
 }

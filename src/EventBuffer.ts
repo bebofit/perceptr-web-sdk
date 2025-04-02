@@ -12,6 +12,7 @@ import {
 } from "./utils/sessionrecording-utils";
 import { CONSOLE_LOG_PLUGIN_NAME, SEVEN_MEGABYTES } from "./common/defaults";
 import { LogData } from "@rrweb/rrweb-plugin-console-record";
+import { logger } from "./utils/logger";
 
 // Internal configuration - not exposed to users
 interface InternalBufferConfig {
@@ -34,7 +35,6 @@ export class EventBuffer {
   private readonly config: InternalBufferConfig;
   private readonly sessionId: string;
   private readonly startTime: number;
-  private readonly debug: boolean;
   private readonly onFlush: (data: SnapshotBuffer) => Promise<void>;
   private userIdentity?: UserIdentity;
   private isFlushInProgress = false;
@@ -44,14 +44,12 @@ export class EventBuffer {
 
   constructor(
     sessionId: string,
-    onFlush: (data: SnapshotBuffer) => Promise<void>,
-    debug: boolean = false
+    onFlush: (data: SnapshotBuffer) => Promise<void>
   ) {
     this.sessionId = sessionId;
     this.startTime = Date.now();
     this.lastFlushTime = this.startTime;
     this.onFlush = onFlush;
-    this.debug = debug;
 
     // Internal configuration - not exposed to users
     this.config = {
@@ -100,11 +98,7 @@ export class EventBuffer {
       const persistedData: PersistedBufferData[] = JSON.parse(persistedDataStr);
       if (!Array.isArray(persistedData) || persistedData.length === 0) return;
 
-      if (this.debug) {
-        console.debug(
-          `[SDK] Found ${persistedData.length} persisted buffer(s) to send`
-        );
-      }
+      logger.debug(`Found ${persistedData.length} persisted buffer(s) to send`);
 
       // Process each persisted buffer
       for (const data of persistedData) {
@@ -132,18 +126,14 @@ export class EventBuffer {
             await this.onFlush(splitSnapshot);
           }
           persistedData.splice(persistedData.indexOf(data), 1);
-          if (this.debug) {
-            console.debug(
-              `[SDK] Successfully sent persisted buffer for session ${data.sessionId}`
-            );
-          }
+          logger.debug(
+            `Successfully sent persisted buffer for session ${data.sessionId}`
+          );
         } catch (error) {
-          if (this.debug) {
-            console.error(
-              `[SDK] Failed to send persisted buffer for session ${data.sessionId}:`,
-              error
-            );
-          }
+          logger.error(
+            `Failed to send persisted buffer for session ${data.sessionId}:`,
+            error
+          );
         }
       }
       if (persistedData.length > 0) {
@@ -154,10 +144,11 @@ export class EventBuffer {
       } else {
         localStorage.removeItem(this.config.persistenceKey);
       }
+      logger.debug(
+        `[EventBuffer] Processed ${persistedData.length} persisted events`
+      );
     } catch (error) {
-      if (this.debug) {
-        console.error("[SDK] Error processing persisted buffer data:", error);
-      }
+      logger.error("Error processing persisted buffer data:", error);
       // Clear potentially corrupted data
       localStorage.removeItem(this.config.persistenceKey);
     }
@@ -216,15 +207,9 @@ export class EventBuffer {
         JSON.stringify(persistedData)
       );
 
-      if (this.debug) {
-        console.debug(
-          `[SDK] Persisted buffer with ${this.buffer.length} events for session ${this.sessionId}`
-        );
-      }
+      logger.debug(` Persisted ${this.buffer.length} events to storage`);
     } catch (error) {
-      if (this.debug) {
-        console.error("[SDK] Failed to persist buffer data:", error);
-      }
+      logger.error("Failed to persist buffer data:", error);
     }
   }
 
@@ -255,11 +240,10 @@ export class EventBuffer {
       !this.isFlushInProgress &&
       now > this.backoffUntil
     ) {
-      if (this.debug) {
-        console.debug("[SDK] Scheduling buffer flush");
-      }
+      logger.debug("Scheduling buffer flush");
       scheduleIdleTask(() => this.flush());
     }
+    logger.debug(`Added event: ${event.type}`);
   }
 
   public addEvents(events: EventType[]): void {
@@ -282,13 +266,11 @@ export class EventBuffer {
 
     // Check if we're in a backoff period
     if (now < this.backoffUntil && !isSessionEnded) {
-      if (this.debug) {
-        console.debug(
-          `[SDK] In backoff period, skipping flush. Will retry in ${Math.ceil(
-            (this.backoffUntil - now) / 1000
-          )}s`
-        );
-      }
+      logger.debug(
+        `In backoff period, skipping flush. Will retry in ${Math.ceil(
+          (this.backoffUntil - now) / 1000
+        )}s`
+      );
       return;
     }
 
@@ -296,11 +278,9 @@ export class EventBuffer {
     const bufferData = [...this.buffer];
     const bufferSize = this.bufferSize;
 
-    if (this.debug) {
-      console.debug(
-        `[SDK] Flushing buffer with ${bufferData.length} events (${bufferSize} bytes)`
-      );
-    }
+    logger.debug(
+      `Flushing buffer with ${bufferData.length} events (${bufferSize} bytes)`
+    );
 
     // Determine if compression should be used
     const shouldCompress =
@@ -344,6 +324,9 @@ export class EventBuffer {
 
       // Reset the flush timer
       this.resetFlushTimer();
+      logger.debug(
+        `[EventBuffer] Flushing ${bufferData.length} events to server`
+      );
     } catch (error) {
       // Increment failure count and implement exponential backoff
       this.flushFailures++;
@@ -356,29 +339,26 @@ export class EventBuffer {
 
       this.backoffUntil = now + backoffTime;
 
-      if (this.debug) {
-        console.error(
-          `[SDK] Failed to flush buffer (attempt ${
-            this.flushFailures
-          }). Backing off for ${backoffTime / 1000}s until ${new Date(
-            this.backoffUntil
-          ).toISOString()}`
-        );
-      }
+      logger.error(
+        `Failed to flush buffer (attempt ${
+          this.flushFailures
+        }). Backing off for ${backoffTime / 1000}s until ${new Date(
+          this.backoffUntil
+        ).toISOString()}`
+      );
 
       // If buffer is getting too large despite failures, we might need to drop some events
       if (this.bufferSize > SEVEN_MEGABYTES * 20) {
         const eventsToKeep = Math.floor(this.buffer.length * 0.8); // Keep 80% of events
-        if (this.debug) {
-          console.warn(
-            `[SDK] Buffer too large after flush failures. Dropping ${
-              this.buffer.length - eventsToKeep
-            } oldest events`
-          );
-        }
+        logger.debug(
+          `Buffer too large after flush failures. Dropping ${
+            this.buffer.length - eventsToKeep
+          } oldest events`
+        );
         this.buffer = this.buffer.slice(-eventsToKeep);
         this.recalculateBufferSize();
       }
+      logger.error("Failed to flush buffer:", error);
     } finally {
       this.isFlushInProgress = false;
     }
@@ -427,12 +407,10 @@ export class EventBuffer {
         snapshot.size = compressedBuffer.byteLength;
       }
     } catch (error) {
-      if (this.debug) {
-        console.warn(
-          "[SDK] Compression failed, sending uncompressed data:",
-          error
-        );
-      }
+      logger.debug(
+        "[SDK] Compression failed, sending uncompressed data:",
+        error
+      );
       snapshot.metadata = {
         ...snapshot.metadata,
         compressed: false,
@@ -455,9 +433,7 @@ export class EventBuffer {
 
   private startFlushTimer(): void {
     this.flushTimer = setTimeout(() => {
-      if (this.debug) {
-        console.debug("[SDK] Flushing buffer due to timer");
-      }
+      logger.debug("[SDK] Flushing buffer due to timer");
       this.flush();
     }, this.config.flushInterval);
   }

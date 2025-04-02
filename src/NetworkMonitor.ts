@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type { NetworkRequest, NetworkMonitorConfig } from "./types";
+import { logger } from "./utils/logger";
 
 export class NetworkMonitor {
   private requests: NetworkRequest[] = [];
@@ -8,7 +9,6 @@ export class NetworkMonitor {
   private originalXHRSend: typeof XMLHttpRequest.prototype.send;
   private isEnabled = false;
   private startTime: number;
-  private debug = false;
 
   private readonly config: Required<NetworkMonitorConfig> = {
     maxRequests: 1000,
@@ -41,12 +41,7 @@ export class NetworkMonitor {
     excludeUrls: [/\/logs$/, /\/health$/],
   };
 
-  constructor(
-    config: NetworkMonitorConfig = {},
-    startTime: number,
-    debug: boolean = false
-  ) {
-    this.debug = debug;
+  constructor(config: NetworkMonitorConfig = {}, startTime: number) {
     this.startTime = startTime;
     this.config = { ...this.config, ...config };
     this.originalFetch = window.fetch;
@@ -56,9 +51,7 @@ export class NetworkMonitor {
 
   public enable(): void {
     if (this.isEnabled) {
-      if (this.debug) {
-        console.warn("[SDK] NetworkMonitor already enabled");
-      }
+      logger.warn("NetworkMonitor already enabled");
       return;
     }
     this.patchFetch();
@@ -68,9 +61,7 @@ export class NetworkMonitor {
 
   public disable(): void {
     if (!this.isEnabled) {
-      if (this.debug) {
-        console.warn("[SDK] NetworkMonitor already disabled");
-      }
+      logger.warn("NetworkMonitor already disabled");
       return;
     }
     window.fetch = this.originalFetch;

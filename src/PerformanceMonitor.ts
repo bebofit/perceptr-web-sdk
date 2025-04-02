@@ -1,5 +1,5 @@
 import { MemoryEstimate, Memory } from "./types";
-
+import { logger } from "./utils/logger";
 declare global {
   interface Performance {
     measureUserAgentSpecificMemory(): Promise<MemoryEstimate>;
@@ -21,7 +21,7 @@ export class PerformanceMonitor {
     onLimitExceeded: () => void
   ) {
     if (!this.isMemoryAPIAvailable()) {
-      console.warn("[SDK] Memory API is not available");
+      logger.warn("Memory API is not available");
     }
     this.memoryLimit = memoryLimit;
     this.onLimitExceeded = onLimitExceeded;
@@ -62,7 +62,7 @@ export class PerformanceMonitor {
         }
       }
     } catch (error) {
-      console.warn("[SDK] Memory measurement failed:", error);
+      logger.warn("Memory measurement failed:", error);
     }
   }
 
