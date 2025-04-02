@@ -113,7 +113,7 @@ export class EventBuffer {
           const snapshot: SnapshotBuffer = {
             isSessionEnded: true,
             sessionId: data.sessionId,
-            startTime: data.timestamp - 60000, // Approximate start time (1 minute before)
+            startTime: this.startTime,
             endTime: data.timestamp,
             size: data.size,
             data: data.events,
