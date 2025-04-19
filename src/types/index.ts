@@ -73,6 +73,7 @@ export interface PerformanceConfig {
 
 export interface CoreConfig {
   debug?: boolean;
+  env?: "local" | "dev" | "stg" | "prod";
   projectId: string;
   session?: SessionConfig;
   network?: NetworkMonitorConfig;
