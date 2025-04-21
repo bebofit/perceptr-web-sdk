@@ -37,10 +37,15 @@ export class ApiService {
     }
   }
 
-  public async getUploadBufferUrl(sessionId: string): Promise<string> {
+  private async getUploadBufferUrl(sessionId: string): Promise<string> {
     const url = `${this.apiUrl}/r/${sessionId}/batch`;
     const response = await axios.get(url);
     return response.data.url;
+  }
+
+  private async processSession(sessionId: string): Promise<void> {
+    const url = `${this.apiUrl}/r/${sessionId}/process`;
+    await axios.post(url);
   }
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
@@ -53,5 +58,9 @@ export class ApiService {
     logger.debug(
       `Successfully uploaded events to S3 ${buffer.sessionId} (${buffer.size} bytes)`
     );
+    if (buffer.isSessionEnded) {
+      await this.processSession(buffer.sessionId);
+      logger.debug(`Session ${buffer.sessionId} triggered`);
+    }
   }
 }
