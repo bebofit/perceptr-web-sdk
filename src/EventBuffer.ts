@@ -101,7 +101,15 @@ export class EventBuffer {
       logger.debug(`Found ${persistedData.length} persisted buffer(s) to send`);
 
       // Process each persisted buffer
-      for (const data of persistedData) {
+      for (const data of [...persistedData]) {
+        // Skip and remove empty buffers
+        if (!Array.isArray(data.events) || data.events.length === 0) {
+          persistedData.splice(persistedData.indexOf(data), 1);
+          logger.debug(
+            `Removed empty persisted buffer for session ${data.sessionId}`
+          );
+          continue;
+        }
         try {
           // Create a snapshot from the persisted data
           const snapshot: SnapshotBuffer = {
@@ -122,8 +130,10 @@ export class EventBuffer {
 
           // Send the persisted data
           const splitSnapshots = splitBuffer(snapshot);
-          for (const splitSnapshot of splitSnapshots) {
-            await this.onFlush(splitSnapshot);
+          for (let i = 0; i < splitSnapshots.length; i++) {
+            // Only the last batch should have isSessionEnded: true
+            splitSnapshots[i].isSessionEnded = i === splitSnapshots.length - 1;
+            await this.onFlush(splitSnapshots[i]);
           }
           persistedData.splice(persistedData.indexOf(data), 1);
           logger.debug(
