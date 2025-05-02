@@ -132,37 +132,6 @@ export function sessionRecordingUrlTriggerMatches(
   });
 }
 
-// recursively splits large buffers into smaller ones
-// uses a pretty high size limit to avoid splitting too much
-export function splitBuffer(
-  buffer: SnapshotBuffer,
-  sizeLimit: number = SEVEN_MEGABYTES
-): SnapshotBuffer[] {
-  if (buffer.size >= sizeLimit && buffer.data.length > 1) {
-    const half = Math.floor(buffer.data.length / 2);
-    const firstHalf = buffer.data.slice(0, half);
-    const secondHalf = buffer.data.slice(half);
-    return [
-      splitBuffer({
-        size: estimateSize(firstHalf),
-        data: firstHalf,
-        isSessionEnded: buffer.isSessionEnded,
-        sessionId: buffer.sessionId,
-        startTime: buffer.startTime,
-      }),
-      splitBuffer({
-        size: estimateSize(secondHalf),
-        data: secondHalf,
-        isSessionEnded: buffer.isSessionEnded,
-        sessionId: buffer.sessionId,
-        startTime: buffer.startTime,
-      }),
-    ].flatMap((x) => x);
-  } else {
-    return [buffer];
-  }
-}
-
 export function scheduleIdleTask(task: () => void, timeout = 1000): void {
   if (typeof window.requestIdleCallback !== "undefined") {
     window.requestIdleCallback(task, { timeout });

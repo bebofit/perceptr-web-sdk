@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import type { CoreConfig, SnapshotBuffer } from "../../types";
 import { logger } from "../../utils/logger";
 
@@ -37,19 +37,42 @@ export class ApiService {
     }
   }
 
-  private async getUploadBufferUrl(sessionId: string): Promise<string> {
-    const url = `${this.apiUrl}/r/${sessionId}/batch`;
-    const response = await axios.get(url);
-    return response.data.url;
+  private async getUploadBufferUrl(sessionId: string): Promise<string | null> {
+    try {
+      const url = `${this.apiUrl}/r/${sessionId}/batch`;
+      const response = await axios.get(url);
+      return response.data.url;
+    } catch (error) {
+      if (error instanceof AxiosError) {
+        if (
+          error.response?.status === 400 &&
+          error.response?.data.detail === "processing already started"
+        ) {
+          logger.debug(
+            `Processing already started for session ${sessionId} skipping...`
+          );
+          return null;
+        }
+      }
+      throw error;
+    }
   }
 
-  private async processSession(sessionId: string): Promise<void> {
-    const url = `${this.apiUrl}/r/${sessionId}/process`;
-    await axios.post(url);
+  async processSession(sessionId: string): Promise<void> {
+    try {
+      const url = `${this.apiUrl}/r/${sessionId}/process`;
+      await axios.post(url);
+    } catch (error) {
+      // we assume this is because the session is already being processed
+      logger.error(`Error processing session ${sessionId}:`, error);
+    }
   }
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
     const url = await this.getUploadBufferUrl(buffer.sessionId);
+    if (!url) {
+      return;
+    }
     await axios.put(url, buffer, {
       headers: {
         "Content-Type": "application/json",

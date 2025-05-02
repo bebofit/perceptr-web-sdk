@@ -1,8 +1,4 @@
-import type {
-  ExportedSession,
-  NetworkRequest,
-  UserIdentity,
-} from "./types";
+import type { ExportedSession, NetworkRequest, UserIdentity } from "./types";
 import type { eventWithTime } from "@rrweb/types";
 export class SessionExporter {
   private readonly sessionId: string;
@@ -31,11 +27,7 @@ export class SessionExporter {
     this.userIdentity = userIdentity;
   }
 
-  public sendEventsToServer() {
-    // TODO: Implement this in a buffer for performance
-  }
-
-   public exportSession(): ExportedSession {
+  public exportSession(): ExportedSession {
     const exportData: ExportedSession = {
       sessionId: this.sessionId,
       startTime: this.startTime,

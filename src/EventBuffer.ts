@@ -5,11 +5,7 @@ import type {
   SnapshotBuffer,
   UserIdentity,
 } from "./types";
-import {
-  estimateSize,
-  scheduleIdleTask,
-  splitBuffer,
-} from "./utils/sessionrecording-utils";
+import { estimateSize, scheduleIdleTask } from "./utils/sessionrecording-utils";
 import { CONSOLE_LOG_PLUGIN_NAME, SEVEN_MEGABYTES } from "./common/defaults";
 import { LogData } from "@rrweb/rrweb-plugin-console-record";
 import { logger } from "./utils/logger";
@@ -41,6 +37,7 @@ export class EventBuffer {
   private flushFailures = 0;
   private backoffUntil = 0;
   private unloadHandlerAttached = false;
+  private lastBatchEndTime?: number;
 
   constructor(
     sessionId: string,
@@ -81,6 +78,8 @@ export class EventBuffer {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         this.persistBufferData();
+      } else if (document.visibilityState === "visible") {
+        this.checkForPersistedData();
       }
     });
 
@@ -111,11 +110,23 @@ export class EventBuffer {
           continue;
         }
         try {
+          // For persisted buffers from the current session, determine if we should use
+          // continuous chronology or start fresh based on the stored start time
+          const isSameSession = data.sessionId === this.sessionId;
+          const useContiguousTime = isSameSession && this.lastBatchEndTime;
+
+          // Choose appropriate start time
+          // - For current session with lastBatchEndTime set: use lastBatchEndTime
+          // - Otherwise: use the persisted start time
+          const batchStartTime = useContiguousTime
+            ? this.lastBatchEndTime
+            : data.startTime;
+
           // Create a snapshot from the persisted data
           const snapshot: SnapshotBuffer = {
             isSessionEnded: true,
             sessionId: data.sessionId,
-            startTime: data.startTime,
+            startTime: batchStartTime || data.startTime, // Fallback to original start time if needed
             endTime: data.endTime,
             size: data.size,
             data: data.events,
@@ -129,12 +140,13 @@ export class EventBuffer {
           };
 
           // Send the persisted data
-          const splitSnapshots = splitBuffer(snapshot);
-          for (let i = 0; i < splitSnapshots.length; i++) {
-            // Only the last batch should have isSessionEnded: true
-            splitSnapshots[i].isSessionEnded = i === splitSnapshots.length - 1;
-            await this.onFlush(splitSnapshots[i]);
+          await this.onFlush(snapshot);
+
+          // Update lastBatchEndTime only for current session
+          if (isSameSession) {
+            this.lastBatchEndTime = data.endTime;
           }
+
           persistedData.splice(persistedData.indexOf(data), 1);
           logger.debug(
             `Successfully sent persisted buffer for session ${data.sessionId}`
@@ -294,11 +306,15 @@ export class EventBuffer {
       this.config.useCompression &&
       bufferSize > this.config.compressionThreshold;
 
-    // Create the snapshot buffer
+    // Use appropriate startTime - either original session start time (for first batch)
+    // or the end time of the last batch (for subsequent batches)
+    const batchStartTime = this.lastBatchEndTime || this.startTime;
+
+    // Create a single snapshot buffer
     const snapshot: SnapshotBuffer = {
       isSessionEnded,
       sessionId: this.sessionId,
-      startTime: this.startTime,
+      startTime: batchStartTime,
       endTime: now,
       size: bufferSize,
       data: bufferData,
@@ -317,10 +333,10 @@ export class EventBuffer {
 
     // Send the data to the server
     try {
-      const splitSnapshots = splitBuffer(snapshot);
-      for (const splitSnapshot of splitSnapshots) {
-        await this.onFlush(splitSnapshot);
-      }
+      await this.onFlush(snapshot);
+
+      // Update lastBatchEndTime for the next batch
+      this.lastBatchEndTime = now;
 
       // Success! Clear the buffer and reset failure count
       this.buffer = [];
@@ -434,6 +450,9 @@ export class EventBuffer {
     if (this.buffer.length > 0) {
       this.persistBufferData();
     }
+
+    // Reset batch time tracking
+    this.lastBatchEndTime = undefined;
   }
 
   private startFlushTimer(): void {
