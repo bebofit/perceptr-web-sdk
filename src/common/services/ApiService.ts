@@ -58,7 +58,7 @@ export class ApiService {
     }
   }
 
-  async processSession(sessionId: string): Promise<void> {
+  private async processSession(sessionId: string): Promise<void> {
     try {
       const url = `${this.apiUrl}/r/${sessionId}/process`;
       await axios.post(url);

@@ -1,5 +1,4 @@
 import { NetworkMonitor } from "./NetworkMonitor";
-import { SessionExporter } from "./SessionExporter";
 import { SessionRecorder } from "./SessionRecorder";
 import { PerformanceMonitor } from "./PerformanceMonitor";
 import { EventBuffer } from "./EventBuffer";
@@ -7,19 +6,16 @@ import { ApiService } from "./common/services/ApiService";
 import {
   CoreComponents,
   CoreConfig,
-  ExportedSession,
   SnapshotBuffer,
   UserIdentity,
 } from "./types";
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
-import { v4 as uuidv4 } from "uuid";
 import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
 import { logger } from "./utils/logger";
 
 export class Core {
   private components!: CoreComponents;
   private config: CoreConfig;
-  private sessionId!: string;
   private startTime!: number;
   private performanceMonitor!: PerformanceMonitor;
   private eventBuffer!: EventBuffer;
@@ -43,7 +39,6 @@ export class Core {
       if (!valid) {
         throw new Error(`Invalid project ID: ${this.config.projectId}`);
       }
-      this.sessionId = uuidv4();
       this.startTime = Date.now();
       this.eventListeners = [];
       this.userIdentity = this.config.userIdentity;
@@ -57,7 +52,7 @@ export class Core {
         () => this.handleMemoryLimit()
       );
 
-      this.eventBuffer = new EventBuffer(this.sessionId, (buffer) =>
+      this.eventBuffer = new EventBuffer(this.config.session ?? {}, (buffer) =>
         this.sendBufferToServer(buffer)
       );
 
@@ -118,20 +113,11 @@ export class Core {
   }
 
   private async sendBufferToServer(buffer: SnapshotBuffer): Promise<void> {
-    try {
-      // Add user identity to the buffer before sending
-      if (this.userIdentity) {
-        buffer.userIdentity = this.userIdentity;
-      }
-      await this.apiService.sendEvents(buffer);
-    } catch (error) {
-      emitError({
-        code: ErrorCode.API_ERROR,
-        message: "Failed to send events to server",
-        originalError: error,
-      });
-      throw error;
+    // Add user identity to the buffer before sending
+    if (this.userIdentity) {
+      buffer.userIdentity = this.userIdentity;
     }
+    await this.apiService.sendEvents(buffer);
   }
 
   private setupDebugListeners(): void {
@@ -219,7 +205,7 @@ export class Core {
     }
   }
 
-  public async stop(): Promise<ExportedSession> {
+  public async stop(): Promise<void> {
     if (!this.isEnabled) {
       throw new Error("[SDK] is not enabled");
     }
@@ -229,19 +215,9 @@ export class Core {
       await this.eventBuffer.flush(true);
 
       // Aggregate and export data
-      return new Promise<ExportedSession>((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         scheduleIdleTask(() => {
           try {
-            // Create the exporter
-            const exporter = new SessionExporter(
-              this.sessionId,
-              this.startTime,
-              Date.now(),
-              this.components.sessionRecorder.getRecordingEvents(),
-              this.components.networkMonitor.getRequests(),
-              this.config.metadata,
-              this.userIdentity
-            );
             this.isEnabled = false;
 
             // Stop all components
@@ -252,7 +228,7 @@ export class Core {
             this.components.networkMonitor.disable();
 
             // Export the session data
-            resolve(exporter.exportSession());
+            resolve();
             logger.debug("Recording stopped and data exported");
           } catch (error) {
             emitError({

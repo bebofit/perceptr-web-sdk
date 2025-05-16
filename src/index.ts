@@ -1,5 +1,5 @@
 import { Core } from "./SessionCore";
-import type { CoreConfig, ExportedSession, UserIdentity } from "./types";
+import type { CoreConfig, UserIdentity } from "./types";
 import { logger } from "./utils/logger";
 
 class PerceptrSDK {
@@ -34,7 +34,7 @@ class PerceptrSDK {
     return this.core.start();
   }
 
-  public stop(): Promise<ExportedSession> {
+  public stop(): Promise<void> {
     this.ensureInitialized();
     return this.core.stop();
   }
@@ -68,4 +68,4 @@ class PerceptrSDK {
 export default PerceptrSDK.getInstance();
 
 // Export types for consumers
-export type { CoreConfig, UserIdentity, ExportedSession };
+export type { CoreConfig, UserIdentity };

@@ -4,6 +4,7 @@ import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
 import type { eventWithTime } from "@rrweb/types";
 
 export interface SessionConfig {
+  staleThreshold?: number;
   urlBlocklist?: SessionRecordingUrlTrigger[];
   maxEvents?: number;
   sampling?: {
@@ -71,11 +72,15 @@ export interface PerformanceConfig {
   };
 }
 
+export interface BufferConfig {
+  staleThreshold?: number;
+}
+
 export interface CoreConfig {
   debug?: boolean;
   env?: "local" | "dev" | "stg" | "prod";
   projectId: string;
-  session?: SessionConfig;
+  session?: SessionConfig & BufferConfig;
   network?: NetworkMonitorConfig;
   console?: Parameters<typeof getRecordConsolePlugin>[0];
   metadata?: Record<string, any>;
@@ -86,16 +91,6 @@ export interface CoreConfig {
 export interface CoreComponents {
   sessionRecorder: SessionRecorder;
   networkMonitor: NetworkMonitor;
-}
-
-export interface ExportedSession {
-  sessionId: string;
-  startTime: number;
-  endTime?: number;
-  metadata?: Record<string, any>;
-  rrwebEvents: eventWithTime[];
-  networkRequests: NetworkRequest[];
-  userIdentity?: UserIdentity;
 }
 
 export interface Memory {
@@ -122,6 +117,7 @@ export interface SnapshotBuffer {
   startTime: number;
   endTime?: number;
   sessionId: string;
+  batchId: string;
   metadata?: Record<string, any>;
   userIdentity?: UserIdentity;
 }
@@ -129,6 +125,7 @@ export interface SnapshotBuffer {
 // Structure for persisted buffer data
 export interface PersistedBufferData {
   sessionId: string;
+  batchId: string;
   startTime: number;
   endTime: number;
   events: EventType[];

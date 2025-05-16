@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type {
+  BufferConfig,
   EventType,
   PersistedBufferData,
   SnapshotBuffer,
@@ -17,6 +18,7 @@ interface InternalBufferConfig {
   maxBufferAge: number; // in ms
   compressionThreshold: number; // in bytes
   useCompression: boolean;
+  staleBufferThreshold: number; // in ms
   backoffInterval: number; // in ms
   maxBackoffInterval: number; // in ms
   persistenceEnabled: boolean; // whether to persist buffer data
@@ -26,11 +28,11 @@ interface InternalBufferConfig {
 export class EventBuffer {
   private buffer: EventType[] = [];
   private bufferSize = 0;
-  private lastFlushTime: number;
+  private lastFlushTime!: number;
   private flushTimer?: ReturnType<typeof setTimeout>;
   private readonly config: InternalBufferConfig;
-  private readonly sessionId: string;
-  private readonly startTime: number;
+  private sessionId!: string;
+  private startTime!: number;
   private readonly onFlush: (data: SnapshotBuffer) => Promise<void>;
   private userIdentity?: UserIdentity;
   private isFlushInProgress = false;
@@ -40,12 +42,9 @@ export class EventBuffer {
   private lastBatchEndTime?: number;
 
   constructor(
-    sessionId: string,
+    config: BufferConfig,
     onFlush: (data: SnapshotBuffer) => Promise<void>
   ) {
-    this.sessionId = sessionId;
-    this.startTime = Date.now();
-    this.lastFlushTime = this.startTime;
     this.onFlush = onFlush;
 
     // Internal configuration - not exposed to users
@@ -55,6 +54,7 @@ export class EventBuffer {
       maxBufferAge: 300000, // 5 minutes default
       compressionThreshold: 100 * 1024, // 100KB
       useCompression: false,
+      staleBufferThreshold: config.staleThreshold ?? 3600000, // 1 hour default
       backoffInterval: 5000, // 5 seconds initial backoff
       maxBackoffInterval: 300000, // 5 minutes max backoff
       persistenceEnabled: true,
@@ -63,7 +63,52 @@ export class EventBuffer {
 
     this.startFlushTimer();
     this.setupUnloadHandler();
-    this.checkForPersistedData();
+    this.handleSessionResume();
+  }
+
+  private startNewSession(): void {
+    this.sessionId = uuidv4();
+    this.startTime = Date.now();
+    this.lastFlushTime = this.startTime;
+    this.buffer = [];
+    this.bufferSize = 0;
+    this.lastBatchEndTime = undefined;
+  }
+  /**
+   * Handles session resumption logic: checks persisted buffers and determines if a new session is needed.
+   * If the most recent buffer is >1 hour old, generates a new sessionId and resets buffer state.
+   */
+  private async handleSessionResume(): Promise<void> {
+    if (!this.config.persistenceEnabled || typeof localStorage === "undefined")
+      return;
+    const persistedDataStr = localStorage.getItem(this.config.persistenceKey);
+    if (!persistedDataStr) {
+      this.startNewSession();
+      logger.debug("Starting new session due to no persisted data");
+      return;
+    }
+    const persistedData: PersistedBufferData[] = JSON.parse(persistedDataStr);
+    if (!Array.isArray(persistedData) || persistedData.length === 0) {
+      this.startNewSession();
+      logger.debug("Starting new session due to malformated buffer data");
+      return;
+    }
+    // Find the most recent buffer
+    const mostRecent = persistedData.reduce((a, b) =>
+      a.endTime > b.endTime ? a : b
+    );
+    const now = Date.now();
+    if (now - mostRecent.endTime > this.config.staleBufferThreshold) {
+      this.startNewSession();
+      logger.debug("Starting new session due to inactivity > 1 hour");
+    } else {
+      // Continue with previous sessionId
+      this.sessionId = mostRecent.sessionId;
+      this.startTime = mostRecent.startTime;
+      logger.debug("Continuing previous session (inactivity < 1 hour)");
+    }
+    // flush any persisted data
+    await this.flushStoredBuffers(persistedData);
   }
 
   private setupUnloadHandler(): void {
@@ -79,31 +124,24 @@ export class EventBuffer {
       if (document.visibilityState === "hidden") {
         this.persistBufferData();
       } else if (document.visibilityState === "visible") {
-        this.checkForPersistedData();
+        this.handleSessionResume();
       }
     });
 
     this.unloadHandlerAttached = true;
   }
 
-  private async checkForPersistedData(): Promise<void> {
-    if (!this.config.persistenceEnabled || typeof localStorage === "undefined")
-      return;
-
+  private async flushStoredBuffers(
+    storedBuffers: PersistedBufferData[]
+  ): Promise<void> {
     try {
-      const persistedDataStr = localStorage.getItem(this.config.persistenceKey);
-      if (!persistedDataStr) return;
-
-      const persistedData: PersistedBufferData[] = JSON.parse(persistedDataStr);
-      if (!Array.isArray(persistedData) || persistedData.length === 0) return;
-
-      logger.debug(`Found ${persistedData.length} persisted buffer(s) to send`);
+      logger.debug(`Found ${storedBuffers.length} persisted buffer(s) to send`);
 
       // Process each persisted buffer
-      for (const data of [...persistedData]) {
+      for (const data of [...storedBuffers]) {
         // Skip and remove empty buffers
         if (!Array.isArray(data.events) || data.events.length === 0) {
-          persistedData.splice(persistedData.indexOf(data), 1);
+          storedBuffers.splice(storedBuffers.indexOf(data), 1);
           logger.debug(
             `Removed empty persisted buffer for session ${data.sessionId}`
           );
@@ -124,8 +162,9 @@ export class EventBuffer {
 
           // Create a snapshot from the persisted data
           const snapshot: SnapshotBuffer = {
-            isSessionEnded: true,
+            isSessionEnded: !isSameSession,
             sessionId: data.sessionId,
+            batchId: data.batchId,
             startTime: batchStartTime || data.startTime, // Fallback to original start time if needed
             endTime: data.endTime,
             size: data.size,
@@ -147,7 +186,7 @@ export class EventBuffer {
             this.lastBatchEndTime = data.endTime;
           }
 
-          persistedData.splice(persistedData.indexOf(data), 1);
+          storedBuffers.splice(storedBuffers.indexOf(data), 1);
           logger.debug(
             `Successfully sent persisted buffer for session ${data.sessionId}`
           );
@@ -158,15 +197,15 @@ export class EventBuffer {
           );
         }
       }
-      if (persistedData.length > 0) {
+      if (storedBuffers.length > 0) {
         localStorage.setItem(
           this.config.persistenceKey,
-          JSON.stringify(persistedData)
+          JSON.stringify(storedBuffers)
         );
       } else {
         localStorage.removeItem(this.config.persistenceKey);
       }
-      logger.debug(`Processed ${persistedData.length} persisted events`);
+      logger.debug(`Processed ${storedBuffers.length} persisted events`);
     } catch (error) {
       logger.error("Error processing persisted buffer data:", error);
       // Clear potentially corrupted data
@@ -208,6 +247,7 @@ export class EventBuffer {
         // Add current buffer to persisted data
         persistedData.push({
           sessionId: this.sessionId,
+          batchId: uuidv4(),
           startTime: this.startTime,
           endTime: Date.now(),
           events: [...this.buffer],
@@ -314,12 +354,13 @@ export class EventBuffer {
     const snapshot: SnapshotBuffer = {
       isSessionEnded,
       sessionId: this.sessionId,
+      batchId: uuidv4(),
       startTime: batchStartTime,
       endTime: now,
       size: bufferSize,
       data: bufferData,
       metadata: {
-        bufferCount: uuidv4(),
+        bufferSize: this.bufferSize,
         eventCount: bufferData.length,
         compressed: shouldCompress,
       },
@@ -448,7 +489,7 @@ export class EventBuffer {
 
     // Persist any remaining events before destroying
     if (this.buffer.length > 0) {
-      this.persistBufferData();
+      this.flush(true);
     }
 
     // Reset batch time tracking

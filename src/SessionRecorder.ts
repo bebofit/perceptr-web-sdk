@@ -24,6 +24,7 @@ export class SessionRecorder {
 
   constructor(config: SessionConfig = {}) {
     this.config = {
+      staleThreshold: config.staleThreshold ?? 3600000, // 1 hour default
       console: {
         lengthThreshold: config.console?.lengthThreshold ?? 1000,
         level: config.console?.level ?? ["log", "info", "warn", "error"],
