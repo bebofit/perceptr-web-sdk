@@ -49,12 +49,24 @@ export class ApiService {
           error.response?.data.detail === "processing already started"
         ) {
           logger.debug(
-            `Processing already started for session ${sessionId} skipping...`
+            `Processing already started for session ${sessionId} skipping...`,
           );
           return null;
         }
       }
       throw error;
+    }
+  }
+  private async postPostSession(buffer: SnapshotBuffer): Promise<void> {
+    try {
+      const url = `${this.apiUrl}/r/${buffer.sessionId}/batch-test`;
+      await axios.post(url, buffer, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    } catch (error) {
+      logger.error(`Error posting session ${buffer.sessionId}:`, error);
     }
   }
 
@@ -69,21 +81,22 @@ export class ApiService {
   }
 
   public async sendEvents(buffer: SnapshotBuffer): Promise<void> {
-    const url = await this.getUploadBufferUrl(buffer.sessionId);
-    if (!url) {
-      return;
-    }
-    await axios.put(url, buffer, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    logger.debug(
-      `Successfully uploaded events to S3 ${buffer.sessionId} (${buffer.size} bytes)`
-    );
-    if (buffer.isSessionEnded) {
-      await this.processSession(buffer.sessionId);
-      logger.debug(`Session ${buffer.sessionId} triggered`);
-    }
+    await this.postPostSession(buffer);
+    // const url = await this.getUploadBufferUrl(buffer.sessionId);
+    // if (!url) {
+    //   return;
+    // }
+    // await axios.put(url, buffer, {
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // });
+    // logger.debug(
+    //   `Successfully uploaded events to S3 ${buffer.sessionId} (${buffer.size} bytes)`,
+    // );
+    // if (buffer.isSessionEnded) {
+    //   await this.processSession(buffer.sessionId);
+    //   logger.debug(`Session ${buffer.sessionId} triggered`);
+    // }
   }
 }
