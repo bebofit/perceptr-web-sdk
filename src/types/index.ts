@@ -4,7 +4,14 @@ import { getRecordConsolePlugin } from "@rrweb/rrweb-plugin-console-record";
 import type { eventWithTime } from "@rrweb/types";
 
 export interface SessionConfig {
+  /**
+   * @deprecated Use inactivityTimeout instead. If provided without inactivityTimeout, maps to inactivityTimeout.
+   */
   staleThreshold?: number;
+  /** Inactivity timeout in ms; session ends after no activity for this duration. Default: 30 minutes. */
+  inactivityTimeout?: number;
+  /** Max session duration in ms; session ends after this duration from start. Default: 24 hours. */
+  maxSessionDuration?: number;
   urlBlocklist?: SessionRecordingUrlTrigger[];
   maxEvents?: number;
   sampling?: {
@@ -73,7 +80,18 @@ export interface PerformanceConfig {
 }
 
 export interface BufferConfig {
+  /** @deprecated Use inactivityTimeout instead. */
   staleThreshold?: number;
+  inactivityTimeout?: number;
+  maxSessionDuration?: number;
+}
+
+/** Session state persisted in sessionStorage (tab-specific). */
+export interface PersistedSessionState {
+  sessionId: string;
+  startTime: number;
+  lastActivityTime: number;
+  userIdentity?: UserIdentity;
 }
 
 export interface CoreConfig {
@@ -128,6 +146,8 @@ export interface PersistedBufferData {
   batchId: string;
   startTime: number;
   endTime: number;
+  /** When reading, treat missing as endTime for backward compatibility. */
+  lastActivityTime?: number;
   events: EventType[];
   userIdentity?: UserIdentity;
   size: number;

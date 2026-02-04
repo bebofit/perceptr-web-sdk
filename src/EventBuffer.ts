@@ -3,13 +3,21 @@ import type {
   BufferConfig,
   EventType,
   PersistedBufferData,
+  PersistedSessionState,
   SnapshotBuffer,
   UserIdentity,
 } from "./types";
 import { estimateSize, scheduleIdleTask } from "./utils/sessionrecording-utils";
-import { CONSOLE_LOG_PLUGIN_NAME, SEVEN_MEGABYTES } from "./common/defaults";
+import {
+  ACTIVE_SOURCES,
+  CONSOLE_LOG_PLUGIN_NAME,
+  INCREMENTAL_SNAPSHOT_EVENT_TYPE,
+  SEVEN_MEGABYTES,
+} from "./common/defaults";
 import { LogData } from "@rrweb/rrweb-plugin-console-record";
 import { logger } from "./utils/logger";
+import type { SessionManager } from "./common/services/SessionManager";
+import type { IncrementalSource } from "rrweb";
 
 // Internal configuration - not exposed to users
 interface InternalBufferConfig {
@@ -18,11 +26,10 @@ interface InternalBufferConfig {
   maxBufferAge: number; // in ms
   compressionThreshold: number; // in bytes
   useCompression: boolean;
-  staleBufferThreshold: number; // in ms
   backoffInterval: number; // in ms
   maxBackoffInterval: number; // in ms
   persistenceEnabled: boolean; // whether to persist buffer data
-  persistenceKey: string; // localStorage key for persisted data
+  persistenceKey: string; // sessionStorage key for persisted data
 }
 
 export class EventBuffer {
@@ -40,13 +47,15 @@ export class EventBuffer {
   private backoffUntil = 0;
   private unloadHandlerAttached = false;
   private lastBatchEndTime?: number;
+  private readonly sessionManager?: SessionManager;
 
   constructor(
     config: BufferConfig,
-    onFlush: (data: SnapshotBuffer) => Promise<void>
+    onFlush: (data: SnapshotBuffer) => Promise<void>,
+    sessionManager?: SessionManager
   ) {
     this.onFlush = onFlush;
-
+    this.sessionManager = sessionManager;
     // Internal configuration - not exposed to users
     this.config = {
       maxBufferSize: 1024 * 1024, // 1MB default
@@ -54,80 +63,64 @@ export class EventBuffer {
       maxBufferAge: 300000, // 5 minutes default
       compressionThreshold: 100 * 1024, // 100KB
       useCompression: false,
-      staleBufferThreshold: config.staleThreshold ?? 3600000, // 1 hour default
       backoffInterval: 5000, // 5 seconds initial backoff
       maxBackoffInterval: 300000, // 5 minutes max backoff
       persistenceEnabled: true,
       persistenceKey: "perceptr_buffer_data",
     };
-
     this.startFlushTimer();
     this.setupUnloadHandler();
-    this.handleSessionResume();
   }
 
-  private startNewSession(): void {
-    this.sessionId = uuidv4();
-    this.startTime = Date.now();
-    this.lastFlushTime = this.startTime;
-    this.buffer = [];
-    this.bufferSize = 0;
-    this.lastBatchEndTime = undefined;
-  }
   /**
-   * Handles session resumption logic: checks persisted buffers and determines if a new session is needed.
-   * If the most recent buffer is >1 hour old, generates a new sessionId and resets buffer state.
+   * Sets session identity from SessionManager. Call after getOrCreateSession().
    */
-  private async handleSessionResume(): Promise<void> {
-    if (!this.config.persistenceEnabled || typeof localStorage === "undefined")
-      return;
-    const persistedDataStr = localStorage.getItem(this.config.persistenceKey);
-    if (!persistedDataStr) {
-      this.startNewSession();
-      logger.debug("Starting new session due to no persisted data");
+  public setSessionState(state: PersistedSessionState): void {
+    this.sessionId = state.sessionId;
+    this.startTime = state.startTime;
+    if (this.lastFlushTime == null) {
+      this.lastFlushTime = state.startTime;
+    }
+  }
+
+  /**
+   * Flushes any persisted buffers from sessionStorage. Call after setSessionState
+   * when tab becomes visible or on init. Session identity is already set by Core.
+   */
+  public async flushPersistedBuffers(): Promise<void> {
+    if (
+      !this.config.persistenceEnabled ||
+      typeof sessionStorage === "undefined"
+    ) {
       return;
     }
-    const persistedData: PersistedBufferData[] = JSON.parse(persistedDataStr);
-    if (!Array.isArray(persistedData) || persistedData.length === 0) {
-      this.startNewSession();
-      logger.debug("Starting new session due to malformated buffer data");
+    const persistedDataStr = sessionStorage.getItem(this.config.persistenceKey);
+    if (!persistedDataStr) return;
+    let persistedData: PersistedBufferData[];
+    try {
+      persistedData = JSON.parse(persistedDataStr);
+      if (!Array.isArray(persistedData)) return;
+    } catch {
       return;
     }
-    // Find the most recent buffer
-    const mostRecent = persistedData.reduce((a, b) =>
-      a.endTime > b.endTime ? a : b
-    );
-    const now = Date.now();
-    if (now - mostRecent.endTime > this.config.staleBufferThreshold) {
-      this.startNewSession();
-      logger.debug("Starting new session due to inactivity > 1 hour");
-    } else {
-      // Continue with previous sessionId
-      this.sessionId = mostRecent.sessionId;
-      this.startTime = mostRecent.startTime;
-      logger.debug("Continuing previous session (inactivity < 1 hour)");
-    }
-    // flush any persisted data
     await this.flushStoredBuffers(persistedData);
+  }
+
+  private getStorage(): Storage | undefined {
+    if (typeof sessionStorage === "undefined") return undefined;
+    return sessionStorage;
   }
 
   private setupUnloadHandler(): void {
     if (typeof window === "undefined" || this.unloadHandlerAttached) return;
-
-    // Handle browser close/refresh
     window.addEventListener("beforeunload", () => {
       this.persistBufferData();
     });
-
-    // Handle mobile browser pausing
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         this.persistBufferData();
-      } else if (document.visibilityState === "visible") {
-        this.handleSessionResume();
       }
     });
-
     this.unloadHandlerAttached = true;
   }
 
@@ -197,76 +190,74 @@ export class EventBuffer {
           );
         }
       }
-      if (storedBuffers.length > 0) {
-        localStorage.setItem(
-          this.config.persistenceKey,
-          JSON.stringify(storedBuffers)
-        );
-      } else {
-        localStorage.removeItem(this.config.persistenceKey);
+      const storage = this.getStorage();
+      if (storage) {
+        if (storedBuffers.length > 0) {
+          storage.setItem(
+            this.config.persistenceKey,
+            JSON.stringify(storedBuffers)
+          );
+        } else {
+          storage.removeItem(this.config.persistenceKey);
+        }
       }
       logger.debug(`Processed ${storedBuffers.length} persisted events`);
     } catch (error) {
       logger.error("Error processing persisted buffer data:", error);
-      // Clear potentially corrupted data
-      localStorage.removeItem(this.config.persistenceKey);
+      const storage = this.getStorage();
+      if (storage) storage.removeItem(this.config.persistenceKey);
     }
   }
 
   private persistBufferData(): void {
+    const storage = this.getStorage();
     if (
       !this.config.persistenceEnabled ||
-      typeof localStorage === "undefined" ||
+      !storage ||
       this.buffer.length === 0
-    )
+    ) {
       return;
-
+    }
     try {
-      // Get existing persisted data
       let persistedData: PersistedBufferData[] = [];
-      const existingData = localStorage.getItem(this.config.persistenceKey);
-
+      const existingData = storage.getItem(this.config.persistenceKey);
       if (existingData) {
         try {
           persistedData = JSON.parse(existingData);
-          if (!Array.isArray(persistedData)) {
-            persistedData = [];
-          }
-        } catch (e) {
+          if (!Array.isArray(persistedData)) persistedData = [];
+        } catch {
           persistedData = [];
         }
       }
-
+      const now = Date.now();
+      const lastActivityTime =
+        this.sessionManager?.getCurrentState()?.lastActivityTime ?? now;
       const existingSession = persistedData.find(
         (data) => data.sessionId === this.sessionId
       );
-
       if (existingSession) {
         existingSession.events = [...this.buffer];
+        existingSession.endTime = now;
+        existingSession.lastActivityTime = lastActivityTime;
       } else {
-        // Add current buffer to persisted data
         persistedData.push({
           sessionId: this.sessionId,
           batchId: uuidv4(),
           startTime: this.startTime,
-          endTime: Date.now(),
+          endTime: now,
+          lastActivityTime,
           events: [...this.buffer],
           userIdentity: this.userIdentity,
           size: this.bufferSize,
         });
       }
-      // Limit the number of persisted sessions (keep last 3)
       if (persistedData.length > 3) {
         persistedData = persistedData.slice(-3);
       }
-
-      // Store the data
-      // TODO: we can use IndexedDB instead of localStorage for persistence
-      localStorage.setItem(
+      storage.setItem(
         this.config.persistenceKey,
         JSON.stringify(persistedData)
       );
-
       logger.debug(` Persisted ${this.buffer.length} events to storage`);
     } catch (error) {
       logger.error("Failed to persist buffer data:", error);
@@ -274,20 +265,14 @@ export class EventBuffer {
   }
 
   public addEvent(event: EventType): void {
-    // Skip internal SDK logs
-    if (this.isInternalSdkLog(event)) {
-      return;
+    if (this.isInternalSdkLog(event)) return;
+    if (this.sessionManager && this.isInteractiveEvent(event)) {
+      this.sessionManager.updateActivity();
     }
-
-    // Estimate the size of the event
     const eventSize = estimateSize(event);
     const now = Date.now();
-
-    // Add the event to the buffer
     this.buffer.push(event);
     this.bufferSize += eventSize;
-
-    // Check if we should attempt to flush
     const shouldAttemptFlush =
       // Buffer is getting full
       this.bufferSize > this.config.maxBufferSize * 0.9 ||
@@ -508,6 +493,12 @@ export class EventBuffer {
       clearTimeout(this.flushTimer);
     }
     this.startFlushTimer();
+  }
+
+  private isInteractiveEvent(event: EventType): boolean {
+    if (event.type !== INCREMENTAL_SNAPSHOT_EVENT_TYPE) return false;
+    const source = (event as { data?: { source?: number } }).data?.source;
+    return typeof source === "number" && ACTIVE_SOURCES.indexOf(source as IncrementalSource) !== -1;
   }
 
   /**

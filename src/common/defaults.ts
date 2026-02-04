@@ -27,3 +27,8 @@ export const MAX_MESSAGE_SIZE = 5000000 // ~5mb
 
 export const CONSOLE_LOG_PLUGIN_NAME = 'rrweb/console@1' // The name of the rr-web plugin that emits console logs
 export const SEVEN_MEGABYTES = 1024 * 1024 * 7 * 0.9 // ~7mb (with some wiggle room)
+
+/** Default inactivity timeout: 30 minutes (PostHog/Hotjar/FullStory style). */
+export const DEFAULT_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+/** Default max session duration: 24 hours. */
+export const DEFAULT_MAX_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;

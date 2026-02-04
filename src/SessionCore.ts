@@ -3,6 +3,7 @@ import { SessionRecorder } from "./SessionRecorder";
 import { PerformanceMonitor } from "./PerformanceMonitor";
 import { EventBuffer } from "./EventBuffer";
 import { ApiService } from "./common/services/ApiService";
+import { SessionManager } from "./common/services/SessionManager";
 import {
   CoreComponents,
   CoreConfig,
@@ -10,8 +11,11 @@ import {
   UserIdentity,
 } from "./types";
 import { scheduleIdleTask } from "./utils/sessionrecording-utils";
+import { debounce } from "./utils/debounce";
 import { ErrorCode, SDKErrorEvent, emitError } from "./utils/errors";
 import { logger } from "./utils/logger";
+
+const VISIBILITY_DEBOUNCE_MS = 400;
 
 export class Core {
   private components!: CoreComponents;
@@ -20,8 +24,10 @@ export class Core {
   private performanceMonitor!: PerformanceMonitor;
   private eventBuffer!: EventBuffer;
   private apiService!: ApiService;
+  private sessionManager!: SessionManager;
   private isEnabled = false;
   private eventListeners: (() => void)[] = [];
+  private visibilityCleanup: (() => void) | undefined;
   private userIdentity?: UserIdentity;
   private initPromise: Promise<void>;
   private isInitialized = false;
@@ -52,9 +58,20 @@ export class Core {
         () => this.handleMemoryLimit()
       );
 
-      this.eventBuffer = new EventBuffer(this.config.session ?? {}, (buffer) =>
-        this.sendBufferToServer(buffer)
+      const sessionConfig = this.config.session ?? {};
+      this.sessionManager = new SessionManager({
+        inactivityTimeout: sessionConfig.inactivityTimeout,
+        maxSessionDuration: sessionConfig.maxSessionDuration,
+        staleThreshold: sessionConfig.staleThreshold,
+      });
+      this.eventBuffer = new EventBuffer(
+        sessionConfig,
+        (buffer) => this.sendBufferToServer(buffer),
+        this.sessionManager
       );
+      const sessionState = this.sessionManager.getOrCreateSession();
+      this.eventBuffer.setSessionState(sessionState);
+      await this.eventBuffer.flushPersistedBuffers();
 
       if (this.config.debug) {
         this.setupDebugListeners();
@@ -140,8 +157,8 @@ export class Core {
         throw new Error("[SDK] Not properly initialized");
       }
 
-      // Set up event listeners for buffer
       this.setupEventListeners();
+      this.setupVisibilityHandler();
 
       // Start performance monitor
       this.performanceMonitor.start();
@@ -168,18 +185,41 @@ export class Core {
   }
 
   private setupEventListeners(): void {
-    // Subscribe to events from each component
     this.eventListeners.push(
       this.components.sessionRecorder.onEvent((event) => {
         this.eventBuffer.addEvent(event);
       })
     );
-
     this.eventListeners.push(
       this.components.networkMonitor.onRequest((request) => {
         this.eventBuffer.addEvent(request);
       })
     );
+  }
+
+  /**
+   * Debounced visibility handler: on visible, resolve session from SessionManager
+   * and set state on EventBuffer, then flush any persisted buffers.
+   */
+  private setupVisibilityHandler(): void {
+    if (typeof document === "undefined") return;
+    const handleVisible = debounce(() => {
+      if (document.visibilityState !== "visible") return;
+      const sessionState = this.sessionManager.getOrCreateSession();
+      this.eventBuffer.setSessionState(sessionState);
+      this.eventBuffer.flushPersistedBuffers();
+    }, VISIBILITY_DEBOUNCE_MS);
+    document.addEventListener("visibilitychange", handleVisible);
+    this.visibilityCleanup = () => {
+      document.removeEventListener("visibilitychange", handleVisible);
+    };
+  }
+
+  private removeVisibilityHandler(): void {
+    if (this.visibilityCleanup) {
+      this.visibilityCleanup();
+      this.visibilityCleanup = undefined;
+    }
   }
 
   private safelyEnableComponent(
@@ -222,6 +262,7 @@ export class Core {
 
             // Stop all components
             this.eventListeners.forEach((listener) => listener());
+            this.removeVisibilityHandler();
             this.eventBuffer.destroy();
             this.performanceMonitor.stop();
             this.components.sessionRecorder.stopSession();
