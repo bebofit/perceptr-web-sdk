@@ -195,7 +195,7 @@ export class SessionRecorder {
 
     const isNowBlocked = sessionRecordingUrlTriggerMatches(
       url,
-      this.config.urlBlocklist
+      this.config.urlBlocklist,
     );
     this._isUrlBlocked = isNowBlocked;
     if (isNowBlocked && !this._isPaused) {
