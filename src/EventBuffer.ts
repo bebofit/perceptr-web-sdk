@@ -15,7 +15,6 @@ import { logger } from "./utils/logger";
 interface InternalBufferConfig {
   maxBufferSize: number; // in bytes
   flushInterval: number; // in ms
-  maxBufferAge: number; // in ms
   compressionThreshold: number; // in bytes
   useCompression: boolean;
   staleBufferThreshold: number; // in ms
@@ -30,7 +29,7 @@ export class EventBuffer {
   private bufferSize = 0;
   private lastFlushTime!: number;
   private flushTimer?: ReturnType<typeof setTimeout>;
-  private readonly config: InternalBufferConfig;
+  private readonly internalConfig: InternalBufferConfig;
   private sessionId!: string;
   private startTime!: number;
   private readonly onFlush: (data: SnapshotBuffer) => Promise<void>;
@@ -43,18 +42,17 @@ export class EventBuffer {
 
   constructor(
     config: BufferConfig,
-    onFlush: (data: SnapshotBuffer) => Promise<void>
+    onFlush: (data: SnapshotBuffer) => Promise<void>,
   ) {
     this.onFlush = onFlush;
 
     // Internal configuration - not exposed to users
-    this.config = {
+    this.internalConfig = {
       maxBufferSize: 1024 * 1024, // 1MB default
       flushInterval: 60000, // 1 minute default
-      maxBufferAge: 300000, // 5 minutes default
       compressionThreshold: 100 * 1024, // 100KB
       useCompression: false,
-      staleBufferThreshold: config.staleThreshold ?? 3600000, // 1 hour default
+      staleBufferThreshold: config.staleThreshold ?? 60000, // 1 minute default
       backoffInterval: 5000, // 5 seconds initial backoff
       maxBackoffInterval: 300000, // 5 minutes max backoff
       persistenceEnabled: true,
@@ -79,9 +77,14 @@ export class EventBuffer {
    * If the most recent buffer is >1 hour old, generates a new sessionId and resets buffer state.
    */
   private async handleSessionResume(): Promise<void> {
-    if (!this.config.persistenceEnabled || typeof localStorage === "undefined")
+    if (
+      !this.internalConfig.persistenceEnabled ||
+      typeof localStorage === "undefined"
+    )
       return;
-    const persistedDataStr = localStorage.getItem(this.config.persistenceKey);
+    const persistedDataStr = localStorage.getItem(
+      this.internalConfig.persistenceKey,
+    );
     if (!persistedDataStr) {
       this.startNewSession();
       logger.debug("Starting new session due to no persisted data");
@@ -95,10 +98,10 @@ export class EventBuffer {
     }
     // Find the most recent buffer
     const mostRecent = persistedData.reduce((a, b) =>
-      a.endTime > b.endTime ? a : b
+      a.endTime > b.endTime ? a : b,
     );
     const now = Date.now();
-    if (now - mostRecent.endTime > this.config.staleBufferThreshold) {
+    if (now - mostRecent.endTime > this.internalConfig.staleBufferThreshold) {
       this.startNewSession();
       logger.debug("Starting new session due to inactivity > 1 hour");
     } else {
@@ -132,7 +135,7 @@ export class EventBuffer {
   }
 
   private async flushStoredBuffers(
-    storedBuffers: PersistedBufferData[]
+    storedBuffers: PersistedBufferData[],
   ): Promise<void> {
     try {
       logger.debug(`Found ${storedBuffers.length} persisted buffer(s) to send`);
@@ -143,7 +146,7 @@ export class EventBuffer {
         if (!Array.isArray(data.events) || data.events.length === 0) {
           storedBuffers.splice(storedBuffers.indexOf(data), 1);
           logger.debug(
-            `Removed empty persisted buffer for session ${data.sessionId}`
+            `Removed empty persisted buffer for session ${data.sessionId}`,
           );
           continue;
         }
@@ -188,34 +191,34 @@ export class EventBuffer {
 
           storedBuffers.splice(storedBuffers.indexOf(data), 1);
           logger.debug(
-            `Successfully sent persisted buffer for session ${data.sessionId}`
+            `Successfully sent persisted buffer for session ${data.sessionId}`,
           );
         } catch (error) {
           logger.error(
             `Failed to send persisted buffer for session ${data.sessionId}:`,
-            error
+            error,
           );
         }
       }
       if (storedBuffers.length > 0) {
         localStorage.setItem(
-          this.config.persistenceKey,
-          JSON.stringify(storedBuffers)
+          this.internalConfig.persistenceKey,
+          JSON.stringify(storedBuffers),
         );
       } else {
-        localStorage.removeItem(this.config.persistenceKey);
+        localStorage.removeItem(this.internalConfig.persistenceKey);
       }
       logger.debug(`Processed ${storedBuffers.length} persisted events`);
     } catch (error) {
       logger.error("Error processing persisted buffer data:", error);
       // Clear potentially corrupted data
-      localStorage.removeItem(this.config.persistenceKey);
+      localStorage.removeItem(this.internalConfig.persistenceKey);
     }
   }
 
   private persistBufferData(): void {
     if (
-      !this.config.persistenceEnabled ||
+      !this.internalConfig.persistenceEnabled ||
       typeof localStorage === "undefined" ||
       this.buffer.length === 0
     )
@@ -224,7 +227,9 @@ export class EventBuffer {
     try {
       // Get existing persisted data
       let persistedData: PersistedBufferData[] = [];
-      const existingData = localStorage.getItem(this.config.persistenceKey);
+      const existingData = localStorage.getItem(
+        this.internalConfig.persistenceKey,
+      );
 
       if (existingData) {
         try {
@@ -238,7 +243,7 @@ export class EventBuffer {
       }
 
       const existingSession = persistedData.find(
-        (data) => data.sessionId === this.sessionId
+        (data) => data.sessionId === this.sessionId,
       );
 
       if (existingSession) {
@@ -263,8 +268,8 @@ export class EventBuffer {
       // Store the data
       // TODO: we can use IndexedDB instead of localStorage for persistence
       localStorage.setItem(
-        this.config.persistenceKey,
-        JSON.stringify(persistedData)
+        this.internalConfig.persistenceKey,
+        JSON.stringify(persistedData),
       );
 
       logger.debug(` Persisted ${this.buffer.length} events to storage`);
@@ -290,9 +295,9 @@ export class EventBuffer {
     // Check if we should attempt to flush
     const shouldAttemptFlush =
       // Buffer is getting full
-      this.bufferSize > this.config.maxBufferSize * 0.9 ||
+      this.bufferSize > this.internalConfig.maxBufferSize * 0.9 ||
       // Buffer is too old
-      now - this.lastFlushTime > this.config.maxBufferAge;
+      now - this.lastFlushTime > this.internalConfig.staleBufferThreshold;
 
     // Only attempt to flush if we're not in a backoff period and not already flushing
     if (
@@ -327,8 +332,8 @@ export class EventBuffer {
     if (now < this.backoffUntil && !isSessionEnded) {
       logger.debug(
         `In backoff period, skipping flush. Will retry in ${Math.ceil(
-          (this.backoffUntil - now) / 1000
-        )}s`
+          (this.backoffUntil - now) / 1000,
+        )}s`,
       );
       return;
     }
@@ -338,13 +343,13 @@ export class EventBuffer {
     const bufferSize = this.bufferSize;
 
     logger.debug(
-      `Flushing buffer with ${bufferData.length} events (${bufferSize} bytes)`
+      `Flushing buffer with ${bufferData.length} events (${bufferSize} bytes)`,
     );
 
     // Determine if compression should be used
     const shouldCompress =
-      this.config.useCompression &&
-      bufferSize > this.config.compressionThreshold;
+      this.internalConfig.useCompression &&
+      bufferSize > this.internalConfig.compressionThreshold;
 
     // Use appropriate startTime - either original session start time (for first batch)
     // or the end time of the last batch (for subsequent batches)
@@ -395,8 +400,9 @@ export class EventBuffer {
 
       // Calculate backoff time with exponential increase
       const backoffTime = Math.min(
-        this.config.backoffInterval * Math.pow(2, this.flushFailures - 1),
-        this.config.maxBackoffInterval
+        this.internalConfig.backoffInterval *
+          Math.pow(2, this.flushFailures - 1),
+        this.internalConfig.maxBackoffInterval,
       );
 
       this.backoffUntil = now + backoffTime;
@@ -405,8 +411,8 @@ export class EventBuffer {
         `Failed to flush buffer (attempt ${
           this.flushFailures
         }). Backing off for ${backoffTime / 1000}s until ${new Date(
-          this.backoffUntil
-        ).toISOString()}`
+          this.backoffUntil,
+        ).toISOString()}`,
       );
 
       // If buffer is getting too large despite failures, we might need to drop some events
@@ -415,7 +421,7 @@ export class EventBuffer {
         logger.debug(
           `Buffer too large after flush failures. Dropping ${
             this.buffer.length - eventsToKeep
-          } oldest events`
+          } oldest events`,
         );
         this.buffer = this.buffer.slice(-eventsToKeep);
         this.recalculateBufferSize();
@@ -429,12 +435,12 @@ export class EventBuffer {
   private recalculateBufferSize(): void {
     this.bufferSize = this.buffer.reduce(
       (size, event) => size + estimateSize(event),
-      0
+      0,
     );
   }
 
   private async compressSnapshot(snapshot: SnapshotBuffer): Promise<void> {
-    if (!this.config.useCompression) return;
+    if (!this.internalConfig.useCompression) return;
 
     try {
       // Use CompressionStream if available (modern browsers)
@@ -452,7 +458,7 @@ export class EventBuffer {
 
         // Convert to base64 for transmission
         const base64 = btoa(
-          String.fromCharCode(...new Uint8Array(compressedBuffer))
+          String.fromCharCode(...new Uint8Array(compressedBuffer)),
         );
 
         // Replace data with compressed version
@@ -471,7 +477,7 @@ export class EventBuffer {
     } catch (error) {
       logger.debug(
         "[SDK] Compression failed, sending uncompressed data:",
-        error
+        error,
       );
       snapshot.metadata = {
         ...snapshot.metadata,
@@ -500,7 +506,7 @@ export class EventBuffer {
     this.flushTimer = setTimeout(() => {
       logger.debug("[SDK] Flushing buffer due to timer");
       this.flush();
-    }, this.config.flushInterval);
+    }, this.internalConfig.flushInterval);
   }
 
   private resetFlushTimer(): void {
