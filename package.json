@@ -12,9 +12,9 @@
   "types": "dist/esm/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js",
-      "types": "./dist/esm/index.d.ts"
+      "require": "./dist/cjs/index.js"
     }
   },
   "sideEffects": false,
@@ -40,7 +40,8 @@
     "test:coverage": "jest --coverage",
     "build:esm": "tsc",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
-    "build": "npm run build:esm && npm run build:cjs"
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:extension": "npm run build && cd extension && npm install && npm run build && zip -r ../perceptr-extension.zip manifest.json background.js injected.js popup.html global.d.ts build.mjs content.js assets/"
   },
   "dependencies": {
     "@rrweb/rrweb-plugin-console-record": "^2.0.0-alpha.18",

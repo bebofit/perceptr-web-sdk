@@ -1,0 +1,14 @@
+{
+  "name": "perceptr-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:injected": "esbuild injected.ts --bundle --outfile=injected.js --platform=browser --format=iife",
+    "build:background": "esbuild background.ts --bundle --outfile=background.js --platform=browser --format=esm"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "esbuild": "^0.24.0"
+  }
+}

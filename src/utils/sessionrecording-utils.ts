@@ -62,7 +62,7 @@ export function ensureMaxMessageSize(data: eventWithTime): {
       if (match[1].toLocaleLowerCase().slice(0, 6) === "image/") {
         stringifiedData = stringifiedData.replace(
           match[0],
-          replacementImageURI
+          replacementImageURI,
         );
       } else {
         stringifiedData = stringifiedData.replace(match[0], "");
@@ -93,7 +93,7 @@ export function truncateLargeConsoleLogs(_event: eventWithTime) {
     if (event.data.payload.payload.length > MAX_STRINGS_PER_LOG) {
       event.data.payload.payload = event.data.payload.payload.slice(
         0,
-        MAX_STRINGS_PER_LOG
+        MAX_STRINGS_PER_LOG,
       );
       event.data.payload.payload.push("...[truncated]");
     }
@@ -105,7 +105,7 @@ export function truncateLargeConsoleLogs(_event: eventWithTime) {
       ) {
         updatedPayload.push(
           event.data.payload.payload[i].slice(0, MAX_STRING_SIZE) +
-            "...[truncated]"
+            "...[truncated]",
         );
       } else {
         updatedPayload.push(event.data.payload.payload[i]);
@@ -120,7 +120,7 @@ export function truncateLargeConsoleLogs(_event: eventWithTime) {
 
 export function sessionRecordingUrlTriggerMatches(
   url: string,
-  triggers: SessionRecordingUrlTrigger[]
+  triggers: SessionRecordingUrlTrigger[],
 ) {
   return triggers.some((trigger) => {
     switch (trigger.matching) {
@@ -133,7 +133,10 @@ export function sessionRecordingUrlTriggerMatches(
 }
 
 export function scheduleIdleTask(task: () => void, timeout = 1000): void {
-  if (typeof window.requestIdleCallback !== "undefined") {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.requestIdleCallback !== "undefined"
+  ) {
     window.requestIdleCallback(task, { timeout });
   } else {
     setTimeout(task, timeout);

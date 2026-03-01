@@ -49,7 +49,7 @@ export class ApiService {
           error.response?.data.detail === "processing already started"
         ) {
           logger.debug(
-            `Processing already started for session ${sessionId} skipping...`
+            `Processing already started for session ${sessionId} skipping...`,
           );
           return null;
         }
@@ -79,7 +79,7 @@ export class ApiService {
       },
     });
     logger.debug(
-      `Successfully uploaded events to S3 ${buffer.sessionId} (${buffer.size} bytes)`
+      `Successfully uploaded events to S3 ${buffer.sessionId} (${buffer.size} bytes)`,
     );
     if (buffer.isSessionEnded) {
       await this.processSession(buffer.sessionId);

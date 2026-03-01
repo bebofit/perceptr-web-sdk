@@ -55,7 +55,7 @@ export class EventBuffer {
       staleBufferThreshold: config.staleThreshold ?? 60000, // 1 minute default
       backoffInterval: 5000, // 5 seconds initial backoff
       maxBackoffInterval: 300000, // 5 minutes max backoff
-      persistenceEnabled: true,
+      persistenceEnabled: config.persistenceEnabled ?? true,
       persistenceKey: "perceptr_buffer_data",
     };
 
@@ -80,8 +80,10 @@ export class EventBuffer {
     if (
       !this.internalConfig.persistenceEnabled ||
       typeof localStorage === "undefined"
-    )
+    ) {
+      this.startNewSession();
       return;
+    }
     const persistedDataStr = localStorage.getItem(
       this.internalConfig.persistenceKey,
     );
@@ -115,7 +117,12 @@ export class EventBuffer {
   }
 
   private setupUnloadHandler(): void {
-    if (typeof window === "undefined" || this.unloadHandlerAttached) return;
+    if (
+      typeof window === "undefined" ||
+      this.unloadHandlerAttached ||
+      !this.internalConfig.persistenceEnabled
+    )
+      return;
 
     // Handle browser close/refresh
     window.addEventListener("beforeunload", () => {

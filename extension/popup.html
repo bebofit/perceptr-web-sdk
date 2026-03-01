@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        /* Perceptr brand colors */
+        --bg-primary: rgb(246, 248, 250);
+        --bg-white: #ffffff;
+        --bg-elevated: #ffffff;
+
+        /* Text */
+        --text-primary: #0a0a0a;
+        --text-secondary: #525252;
+        --text-tertiary: #737373;
+
+        /* Buttons */
+        --btn-primary-bg: #0a0a0a;
+        --btn-primary-text: #ffffff;
+        --btn-secondary-bg: #ffffff;
+        --btn-secondary-text: #0a0a0a;
+        --btn-secondary-border: #d4d4d4;
+
+        /* Accent for recording */
+        --accent-recording: #22c55e;
+        --accent-recording-bg: rgba(34, 197, 94, 0.08);
+        --accent-recording-border: rgba(34, 197, 94, 0.2);
+
+        /* Error */
+        --error: #ef4444;
+        --error-bg: rgba(239, 68, 68, 0.08);
+        --error-border: rgba(239, 68, 68, 0.2);
+
+        /* Borders */
+        --border-color: #e5e5e5;
+        --border-hover: #d4d4d4;
+
+        /* Sizing */
+        --radius-sm: 8px;
+        --radius-md: 10px;
+        --radius-lg: 12px;
+        --radius-full: 9999px;
+
+        /* Shadows */
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+        /* Transitions */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 320px;
+        min-height: 400px;
+        background: var(--bg-primary);
+        font-family: "SF Pro Display", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .container {
+        padding: 20px;
+        animation: fadeIn 0.35s var(--ease-out);
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .logo-wrapper {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+      }
+
+      .logo-glow {
+        position: absolute;
+        inset: -3px;
+        background: rgba(34, 197, 94, 0.3);
+        border-radius: var(--radius-md);
+        filter: blur(8px);
+        opacity: 0;
+        transition: opacity 0.4s var(--ease-out);
+      }
+
+      body.recording .logo-glow {
+        opacity: 1;
+        animation: pulseGlow 2s ease-in-out infinite;
+      }
+
+      @keyframes pulseGlow {
+        0%, 100% { opacity: 0.4; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.05); }
+      }
+
+      .logo {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-md);
+        background: var(--bg-white);
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
+        transition: all 0.25s var(--ease-out);
+      }
+
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .logo:hover {
+        transform: scale(1.03);
+        box-shadow: var(--shadow-md);
+      }
+
+      .brand {
+        flex: 1;
+      }
+
+      .brand-name {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+      }
+
+      .brand-tag {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-tertiary);
+        margin-top: 1px;
+      }
+
+      /* Form styling */
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+      }
+
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--text-primary);
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        outline: none;
+        transition: all 0.2s var(--ease-out);
+        -webkit-appearance: none;
+        appearance: none;
+      }
+
+      input[type="text"]::placeholder {
+        color: var(--text-tertiary);
+      }
+
+      input[type="text"]:hover,
+      select:hover {
+        border-color: var(--border-hover);
+      }
+
+      input[type="text"]:focus,
+      select:focus {
+        border-color: var(--text-primary);
+        box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
+      }
+
+      /* Custom select arrow */
+      .select-wrapper {
+        position: relative;
+      }
+
+      .select-wrapper::after {
+        content: '';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid var(--text-tertiary);
+        pointer-events: none;
+      }
+
+      select {
+        padding-right: 32px;
+        cursor: pointer;
+      }
+
+      select option {
+        background: var(--bg-white);
+        color: var(--text-primary);
+      }
+
+      /* Button group */
+      .button-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 16px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all 0.2s var(--ease-out);
+      }
+
+      .btn-icon {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+      }
+
+      /* Primary button - Start */
+      .btn-start {
+        background: var(--btn-primary-bg);
+        color: var(--btn-primary-text);
+        border: 1px solid var(--btn-primary-bg);
+      }
+
+      .btn-start:hover:not(:disabled) {
+        background: #262626;
+        border-color: #262626;
+      }
+
+      .btn-start:active:not(:disabled) {
+        background: #0a0a0a;
+        transform: scale(0.98);
+      }
+
+      /* Secondary button - Stop */
+      .btn-stop {
+        background: var(--btn-secondary-bg);
+        color: var(--btn-secondary-text);
+        border: 1px solid var(--btn-secondary-border);
+      }
+
+      .btn-stop:hover:not(:disabled) {
+        background: #fafafa;
+        border-color: #a3a3a3;
+      }
+
+      .btn-stop:active:not(:disabled) {
+        background: #f5f5f5;
+        transform: scale(0.98);
+      }
+
+      /* Disabled state */
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* Status indicator */
+      .status {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        font-weight: 450;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.25s var(--ease-out);
+      }
+
+      .status::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-full);
+        flex-shrink: 0;
+      }
+
+      .status.idle {
+        background: var(--bg-white);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+      }
+
+      .status.idle::before {
+        background: var(--text-tertiary);
+      }
+
+      .status.recording {
+        background: var(--accent-recording-bg);
+        color: #15803d;
+        border: 1px solid var(--accent-recording-border);
+      }
+
+      .status.recording::before {
+        background: var(--accent-recording);
+        animation: recordingPulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes recordingPulse {
+        0%, 100% {
+          opacity: 1;
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+        }
+        50% {
+          opacity: 0.7;
+          box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
+        }
+      }
+
+      .status.error {
+        background: var(--error-bg);
+        color: #dc2626;
+        border: 1px solid var(--error-border);
+      }
+
+      .status.error::before {
+        background: var(--error);
+      }
+
+      /* Footer */
+      .footer {
+        margin-top: 20px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border-color);
+        text-align: center;
+      }
+
+      .footer-text {
+        font-size: 11px;
+        color: var(--text-tertiary);
+      }
+
+      .footer-link {
+        color: var(--text-primary);
+        text-decoration: none;
+        font-weight: 500;
+        transition: opacity 0.2s;
+      }
+
+      .footer-link:hover {
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div class="logo-wrapper">
+          <div class="logo-glow"></div>
+          <div class="logo">
+            <img src="assets/perceptr.JPG" alt="Perceptr" />
+          </div>
+        </div>
+        <div class="brand">
+          <div class="brand-name">Perceptr</div>
+          <div class="brand-tag">Session Recorder</div>
+        </div>
+      </header>
+
+      <div class="form-group">
+        <label class="label" for="projectId">Project ID</label>
+        <input
+          type="text"
+          id="projectId"
+          placeholder="Enter your project identifier"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="label" for="env">Environment</label>
+        <div class="select-wrapper">
+          <select id="env">
+            <option value="prod">Production</option>
+            <option value="stg">Staging</option>
+            <option value="dev">Development</option>
+            <option value="local">Local</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button id="startBtn" class="btn btn-start">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="8"/>
+          </svg>
+          Start
+        </button>
+        <button id="stopBtn" class="btn btn-stop" disabled>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="7" y="7" width="10" height="10" rx="1.5"/>
+          </svg>
+          Stop
+        </button>
+      </div>
+
+      <div id="status" class="status idle">
+        Ready to record. Enter project ID to begin.
+      </div>
+
+      <footer class="footer">
+        <p class="footer-text">
+          Powered by <a href="https://perceptr.io" class="footer-link" target="_blank">Perceptr.io</a>
+        </p>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

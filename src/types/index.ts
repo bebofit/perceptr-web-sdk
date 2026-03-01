@@ -74,6 +74,8 @@ export interface PerformanceConfig {
 
 export interface BufferConfig {
   staleThreshold?: number;
+  /** When false, skip localStorage persistence and always start a new session (e.g. for extension background). Default true. */
+  persistenceEnabled?: boolean;
 }
 
 export interface CoreConfig {
