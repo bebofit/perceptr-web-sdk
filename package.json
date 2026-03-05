@@ -41,7 +41,7 @@
     "build:esm": "tsc",
     "build:cjs": "tsc --module commonjs --outDir dist/cjs",
     "build": "npm run build:esm && npm run build:cjs",
-    "build:extension": "npm run build && cd extension && npm install && npm run build && zip -r ../perceptr-extension.zip manifest.json background.js injected.js popup.html global.d.ts build.mjs content.js assets/"
+    "build:extension": "npm run build && cd extension && npm install && npm run build && zip -r ../perceptr-extension.zip manifest.json background.js injected.js popup.html popup.js global.d.ts build.mjs content.js assets/"
   },
   "dependencies": {
     "@rrweb/rrweb-plugin-console-record": "^2.0.0-alpha.18",
